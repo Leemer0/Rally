@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { RallyLogo } from "@/components/RallyLogo";
+import { OutlyLogo } from "@/components/OutlyLogo";
 import { Navigation, type NavigationItem } from "@/components/ui/Navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
@@ -23,7 +23,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <aside className="border-border-subtle bg-background-secondary fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r px-5 py-6 lg:flex">
         <div className="border-border-subtle flex items-center justify-between border-b pb-5">
-          <RallyLogo size="sm" />
+          <OutlyLogo size="sm" />
           <StatusBadge tone="accent">System 01</StatusBadge>
         </div>
 
@@ -49,7 +49,7 @@ export function AppShell({ children }: AppShellProps) {
         <header className="border-border-subtle bg-background-primary/88 sticky top-0 z-20 border-b px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur-xl sm:px-6 lg:px-10">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
             <div className="lg:hidden">
-              <RallyLogo size="sm" />
+              <OutlyLogo size="sm" />
             </div>
             <div className="hidden lg:block">
               <p className="text-text-secondary text-sm">Toronto · 10:42 PM</p>

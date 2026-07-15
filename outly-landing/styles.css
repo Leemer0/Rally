@@ -1,0 +1,195 @@
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap");
+
+:root {
+  --background: #080b10;
+  --text: #f3f2ec;
+  --muted: #8e98a5;
+  --line: rgb(243 242 236 / 10%);
+  --accent: #c8ff2e;
+}
+
+* { box-sizing: border-box; }
+
+html { min-width: 20rem; min-height: 100%; background: var(--background); }
+
+body {
+  min-height: 100svh;
+  margin: 0;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--text);
+  font-family: "Instrument Sans", "Avenir Next", sans-serif;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::after {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::selection { background: var(--accent); color: #101507; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+
+.coming-soon {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+.coming-soon::before {
+  position: absolute;
+  z-index: -3;
+  inset: 0;
+  content: "";
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 5rem 5rem;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+  opacity: 0.28;
+}
+
+.site-header {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100% - 3rem, 84rem);
+  height: 6.5rem;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { display: block; margin-left: -1rem; }
+.brand img { display: block; width: 7rem; height: auto; }
+.site-header p {
+  margin: 0;
+  color: #68727e;
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hero {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(100% - 3rem, 84rem);
+  min-height: calc(100svh - 6.5rem);
+  margin: 0 auto;
+  padding: clamp(2rem, 8vh, 6rem) 0 clamp(10rem, 23vh, 15rem);
+}
+
+.hero-copy {
+  max-width: 72rem;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 1.8rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.status span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0.3rem rgb(200 255 46 / 10%);
+}
+
+h1 {
+  max-width: 72rem;
+  margin: 0;
+  font-size: clamp(3.8rem, 8vw, 8rem);
+  line-height: 0.88;
+  font-weight: 620;
+  letter-spacing: -0.075em;
+}
+
+h1 em { color: var(--accent); font-style: normal; }
+
+.intro {
+  max-width: 35rem;
+  margin: 2.1rem 0 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.5vw, 1.22rem);
+  line-height: 1.65;
+}
+
+.launch-note {
+  position: absolute;
+  right: 0;
+  bottom: clamp(8.5rem, 18vh, 12rem);
+  margin: 0;
+  color: #69737f;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
+.city {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: clamp(8rem, 20vh, 13rem);
+}
+
+.city svg { position: absolute; inset: auto 0 0; width: 100%; height: 100%; fill: #111821; }
+.city .tower { fill: #18212c; }
+
+.city-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -13rem;
+  width: min(56rem, 85vw);
+  height: 28rem;
+  border-radius: 50%;
+  background: rgb(200 255 46 / 7%);
+  filter: blur(5rem);
+  transform: translateX(-50%);
+}
+
+@media (max-width: 42rem) {
+  .site-header { width: calc(100% - 2.5rem); height: 5.5rem; }
+  .site-header p { font-size: 0.56rem; }
+  .brand { margin-left: -0.75rem; }
+  .brand img { width: 6rem; }
+  .hero {
+    width: calc(100% - 2.5rem);
+    min-height: calc(100svh - 5.5rem);
+    padding-top: 1rem;
+    padding-bottom: 9rem;
+  }
+  h1 { font-size: clamp(3.4rem, 16vw, 5.2rem); }
+  h1 br { display: none; }
+  .intro { max-width: 27rem; margin-top: 1.7rem; }
+  .launch-note { display: none; }
+  .coming-soon::before { background-size: 3.5rem 3.5rem; }
+}
+
+@media (max-height: 40rem) and (orientation: landscape) {
+  body { overflow: auto; }
+  .hero { min-height: 34rem; padding-top: 3rem; }
+}

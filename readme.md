@@ -1,6 +1,6 @@
-# Rally
+# Outly
 
-Rally is a mobile-first nightlife discovery app for deciding where to go based on
+Outly is a mobile-first nightlife discovery app for deciding where to go based on
 aggregated social momentum. The product is being built as a Next.js web MVP around a
 versioned API that can later support a separate SwiftUI client.
 
@@ -12,8 +12,13 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The current phase establishes the design system and adaptive application shell. Open
-`http://localhost:3000` to view the component lab.
+Open `http://localhost:3000` for the interactive mobile prototype. It supports the
+complete mocked journey from account choice and onboarding through venue discovery,
+RSVP, QR check-in, offer redemption, List, filters, and Profile.
+
+The map, authentication, venue data, QR, location, and redemption services are
+prototype adapters or local mock data. The design-system lab remains available at
+`http://localhost:3000/system`.
 
 ## Quality checks
 

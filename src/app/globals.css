@@ -24,6 +24,11 @@
   --color-warning-muted: var(--warning-muted);
   --color-error: var(--error);
   --color-error-muted: var(--error-muted);
+  --color-map-background: var(--map-background);
+  --color-map-building: var(--map-building);
+  --color-map-building-edge: var(--map-building-edge);
+  --color-map-road: var(--map-road);
+  --color-map-street: var(--map-street);
 
   --radius-control: var(--radius-control);
   --radius-card: var(--radius-card);
@@ -58,6 +63,11 @@
   --warning-muted: rgb(242 184 75 / 13%);
   --error: #ff6767;
   --error-muted: rgb(255 103 103 / 13%);
+  --map-background: #0a111a;
+  --map-building: #121c28;
+  --map-building-edge: #203044;
+  --map-road: #334256;
+  --map-street: #67768a;
 
   --radius-control: 0.875rem;
   --radius-card: 1.25rem;
@@ -159,7 +169,7 @@ a {
   text-wrap: balance;
 }
 
-@keyframes rally-enter {
+@keyframes outly-enter {
   from {
     opacity: 0;
     transform: translateY(0.75rem);
@@ -170,14 +180,14 @@ a {
   }
 }
 
-@keyframes rally-spin {
+@keyframes outly-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-.rally-enter {
-  animation: rally-enter var(--duration-enter) var(--ease-out-quint) both;
+.outly-enter {
+  animation: outly-enter var(--duration-enter) var(--ease-out-quint) both;
   animation-delay: calc(var(--stagger, 0) * 55ms);
 }
 

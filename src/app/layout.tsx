@@ -5,21 +5,21 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Rally",
-    template: "%s · Rally",
+    default: "Outly",
+    template: "%s · Outly",
   },
   description: "See where Toronto is going tonight.",
-  applicationName: "Rally",
+  applicationName: "Outly",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Rally",
+    title: "Outly",
   },
   formatDetection: {
     telephone: false,
   },
   icons: {
-    icon: "/brand/rally-mark.svg",
+    icon: "/brand/outly-mark.svg",
   },
 };
 

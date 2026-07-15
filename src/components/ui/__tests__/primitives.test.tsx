@@ -7,7 +7,7 @@ import { Navigation } from "@/components/ui/Navigation";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Sheet } from "@/components/ui/Sheet";
 
-describe("Rally UI primitives", () => {
+describe("Outly UI primitives", () => {
   it("disables a loading button and exposes its busy state", () => {
     render(<Button loading>Save plan</Button>);
 

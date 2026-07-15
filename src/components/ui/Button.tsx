@@ -69,7 +69,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {loading ? (
           <span
             aria-hidden="true"
-            className="size-4 rounded-full border-2 border-current border-r-transparent motion-safe:animate-[rally-spin_700ms_linear_infinite]"
+            className="size-4 rounded-full border-2 border-current border-r-transparent motion-safe:animate-[outly-spin_700ms_linear_infinite]"
           />
         ) : (
           leadingIcon

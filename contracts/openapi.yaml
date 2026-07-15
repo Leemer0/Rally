@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Rally API
+  title: Outly API
   version: 1.0.0
   description: Public contract placeholder. Endpoints are added with their implementation.
 servers:

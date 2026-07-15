@@ -1,0 +1,27 @@
+<svg width="240" height="120" viewBox="0 0 240 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wing" x1="0" y1="0" x2="0.85" y2="1">
+      <stop stop-color="#F8F7F3"/>
+      <stop offset="1" stop-color="#CFCFCB"/>
+    </linearGradient>
+    <linearGradient id="letter" x1="78" y1="12" x2="153" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#EEEDE8"/>
+      <stop offset="1" stop-color="#B9BAB7"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="7" stdDeviation="6" flood-color="#000000" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <g fill="url(#wing)">
+      <path d="M82 53C64 46 52 33 39 25C31 20 26 21 28 29C32 43 48 53 69 60L82 53Z"/>
+      <path d="M79 63C57 61 41 53 27 46C19 42 14 44 18 51C25 64 44 71 70 71L79 63Z"/>
+      <path d="M80 72C61 75 48 73 34 71C25 69 22 73 28 79C38 89 56 88 77 81L80 72Z"/>
+      <path d="M158 53C176 46 188 33 201 25C209 20 214 21 212 29C208 43 192 53 171 60L158 53Z"/>
+      <path d="M161 63C183 61 199 53 213 46C221 42 226 44 222 51C215 64 196 71 170 71L161 63Z"/>
+      <path d="M160 72C179 75 192 73 206 71C215 69 218 73 212 79C202 89 184 88 163 81L160 72Z"/>
+    </g>
+    <text x="120" y="92" text-anchor="middle" font-family="Arial Rounded MT Bold, Arial, sans-serif" font-size="88" font-weight="900" fill="url(#letter)" stroke="#F7F6F1" stroke-width="2" paint-order="stroke">O</text>
+  </g>
+</svg>

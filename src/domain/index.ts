@@ -1,2 +1,2 @@
-/** Framework-independent Rally business rules are exported from this boundary. */
+/** Framework-independent Outly business rules are exported from this boundary. */
 export {};
