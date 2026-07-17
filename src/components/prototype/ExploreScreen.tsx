@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { AgeDistributionSparkline } from "@/components/prototype/AgeDistributionSparkline";
 import {
   AppNavigation,
@@ -183,7 +185,7 @@ function MockTorontoMap({
             key={venue.id}
             aria-label={`${venue.name}, ${venue.goingCount} going`}
             aria-pressed={selected}
-            className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+            className="focus-visible:ring-accent-primary focus-visible:ring-offset-map-background group absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-xl focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             onClick={() => onSelectVenue(venue.id)}
             style={{
               left: `${venue.marker.left}%`,
@@ -191,30 +193,25 @@ function MockTorontoMap({
             }}
             type="button"
           >
-            <span
+            <Image
+              alt=""
+              aria-hidden="true"
               className={cn(
-                "shadow-card relative flex items-center justify-center rounded-full border-2 text-[0.65rem] font-bold transition-transform duration-200",
-                selected
-                  ? "border-text-primary bg-accent-primary text-accent-foreground ring-accent-muted size-13 scale-110 ring-4"
-                  : "size-10",
-                !selected &&
-                  venue.activity === "low" &&
-                  "border-text-muted bg-surface-elevated text-text-primary",
-                !selected &&
-                  venue.activity === "building" &&
-                  "border-accent-primary/60 bg-surface-secondary text-accent-primary",
-                !selected &&
-                  venue.activity === "busy" &&
-                  "border-accent-primary bg-accent-muted text-accent-primary",
-                !selected &&
-                  venue.activity === "peak" &&
-                  "border-accent-primary bg-accent-primary text-accent-foreground shadow-accent motion-safe:animate-[pulse_2.4s_ease-in-out_infinite]",
+                "pointer-events-none size-18 object-contain transition-[filter,transform] duration-200 motion-reduce:transition-none",
+                selected ? "scale-110" : "group-hover:-translate-y-0.5",
               )}
-            >
-              {venue.goingCount}
-            </span>
+              draggable={false}
+              height={96}
+              src={venue.markerArt}
+              style={{
+                filter: selected
+                  ? "drop-shadow(0 0 8px color-mix(in srgb, var(--accent-primary) 82%, transparent)) drop-shadow(0 7px 9px rgb(0 0 0 / 0.58))"
+                  : "drop-shadow(0 5px 6px rgb(0 0 0 / 0.48))",
+              }}
+              width={96}
+            />
             {selected ? (
-              <span className="bg-background-secondary text-text-primary shadow-card absolute top-[3.6rem] left-1/2 -translate-x-1/2 rounded-md px-2 py-1 text-[0.6rem] font-semibold whitespace-nowrap">
+              <span className="bg-background-secondary text-text-primary shadow-card absolute top-[4.65rem] left-1/2 -translate-x-1/2 rounded-md px-2 py-1 text-[0.6rem] font-semibold whitespace-nowrap">
                 {venue.name}
               </span>
             ) : null}

@@ -1,0 +1,297 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000040 /* MapboxMaps in Frameworks */ = {isa = PBXBuildFile; productRef = A00000000000000000000041 /* MapboxMaps */; };
+		A00000000000000000000044 /* OutlyLiveActivityExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000049 /* OutlyLiveActivityExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A00000000000000000000045 /* CheckInActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004A /* CheckInActivityAttributes.swift */; };
+		A00000000000000000000046 /* CheckInActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004A /* CheckInActivityAttributes.swift */; };
+		A00000000000000000000047 /* CheckInLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000004B /* CheckInLiveActivityWidget.swift */; };
+		A00000000000000000000058 /* winged-o.png in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000059 /* winged-o.png */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A00000000000000000000034 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000010;
+			remoteInfo = Outly;
+		};
+		A00000000000000000000036 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000010;
+			remoteInfo = Outly;
+		};
+		A00000000000000000000048 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A0000000000000000000004E;
+			remoteInfo = OutlyLiveActivityExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A00000000000000000000052 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (A00000000000000000000044 /* OutlyLiveActivityExtension.appex in Embed App Extensions */,);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A00000000000000000000007 /* Outly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Outly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000008 /* OutlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OutlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000009 /* OutlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OutlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000049 /* OutlyLiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OutlyLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0000000000000000000004A /* CheckInActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInActivityAttributes.swift; sourceTree = "<group>"; };
+		A0000000000000000000004B /* CheckInLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInLiveActivityWidget.swift; sourceTree = "<group>"; };
+		A00000000000000000000057 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000059 /* winged-o.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Outly/Assets.xcassets/WingedOMark.imageset/winged-o.png; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A00000000000000000000004 /* Outly */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Outly; sourceTree = "<group>"; };
+		A00000000000000000000005 /* OutlyTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = OutlyTests; sourceTree = "<group>"; };
+		A00000000000000000000006 /* OutlyUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = OutlyUITests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00000000000000000000014 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000040 /* MapboxMaps in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000017 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000020 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000050 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000004 /* Outly */,
+				A00000000000000000000005 /* OutlyTests */,
+				A00000000000000000000006 /* OutlyUITests */,
+				A0000000000000000000004C /* Shared */,
+				A0000000000000000000004D /* OutlyLiveActivity */,
+				A00000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000007 /* Outly.app */,
+				A00000000000000000000008 /* OutlyTests.xctest */,
+				A00000000000000000000009 /* OutlyUITests.xctest */,
+				A00000000000000000000049 /* OutlyLiveActivityExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A0000000000000000000004C /* Shared */ = {
+			isa = PBXGroup;
+			children = (A0000000000000000000004A /* CheckInActivityAttributes.swift */,);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		A0000000000000000000004D /* OutlyLiveActivity */ = {
+			isa = PBXGroup;
+			children = (A0000000000000000000004B /* CheckInLiveActivityWidget.swift */, A00000000000000000000057 /* Info.plist */, A00000000000000000000059 /* winged-o.png */,);
+			path = OutlyLiveActivity;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000010 /* Outly */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000023 /* Build configuration list for PBXNativeTarget "Outly" */;
+			buildPhases = (
+				A00000000000000000000013 /* Sources */,
+				A00000000000000000000014 /* Frameworks */,
+				A00000000000000000000015 /* Resources */,
+				A00000000000000000000052 /* Embed App Extensions */,
+				A00000000000000000000043 /* Inject Mapbox public token */,
+			);
+			buildRules = ();
+			dependencies = (A00000000000000000000053 /* PBXTargetDependency */,);
+			fileSystemSynchronizedGroups = (A00000000000000000000004 /* Outly */);
+			name = Outly;
+			packageProductDependencies = (A00000000000000000000041 /* MapboxMaps */);
+			productName = Outly;
+			productReference = A00000000000000000000007 /* Outly.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A00000000000000000000011 /* OutlyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000024 /* Build configuration list for PBXNativeTarget "OutlyTests" */;
+			buildPhases = (
+				A00000000000000000000016 /* Sources */,
+				A00000000000000000000017 /* Frameworks */,
+				A00000000000000000000018 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (A00000000000000000000035 /* PBXTargetDependency */);
+			fileSystemSynchronizedGroups = (A00000000000000000000005 /* OutlyTests */);
+			name = OutlyTests;
+			packageProductDependencies = ();
+			productName = OutlyTests;
+			productReference = A00000000000000000000008 /* OutlyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A00000000000000000000012 /* OutlyUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000025 /* Build configuration list for PBXNativeTarget "OutlyUITests" */;
+			buildPhases = (
+				A00000000000000000000019 /* Sources */,
+				A00000000000000000000020 /* Frameworks */,
+				A00000000000000000000021 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = (A00000000000000000000037 /* PBXTargetDependency */);
+			fileSystemSynchronizedGroups = (A00000000000000000000006 /* OutlyUITests */);
+			name = OutlyUITests;
+			packageProductDependencies = ();
+			productName = OutlyUITests;
+			productReference = A00000000000000000000009 /* OutlyUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		A0000000000000000000004E /* OutlyLiveActivityExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000054 /* Build configuration list for PBXNativeTarget "OutlyLiveActivityExtension" */;
+			buildPhases = (
+				A0000000000000000000004F /* Sources */,
+				A00000000000000000000050 /* Frameworks */,
+				A00000000000000000000051 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = OutlyLiveActivityExtension;
+			packageProductDependencies = ();
+			productName = OutlyLiveActivityExtension;
+			productReference = A00000000000000000000049 /* OutlyLiveActivityExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					A00000000000000000000010 = {CreatedOnToolsVersion = 26.0; };
+					A00000000000000000000011 = {CreatedOnToolsVersion = 26.0; TestTargetID = A00000000000000000000010; };
+					A00000000000000000000012 = {CreatedOnToolsVersion = 26.0; TestTargetID = A00000000000000000000010; };
+					A0000000000000000000004E = {CreatedOnToolsVersion = 26.0; };
+				};
+			};
+			buildConfigurationList = A00000000000000000000022 /* Build configuration list for PBXProject "Outly" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A00000000000000000000002;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A00000000000000000000003 /* Products */;
+			packageReferences = (A00000000000000000000042 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A00000000000000000000010 /* Outly */, A00000000000000000000011 /* OutlyTests */, A00000000000000000000012 /* OutlyUITests */, A0000000000000000000004E /* OutlyLiveActivityExtension */);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000000000000000000015 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000018 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000021 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000051 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000058 /* winged-o.png in Resources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A00000000000000000000043 /* Inject Mapbox public token */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputFileListPaths = ();
+			inputPaths = ();
+			name = "Inject Mapbox public token";
+			outputFileListPaths = ();
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nTOKEN_FILE=\"$HOME/.mapbox\"\nTOKEN_RESOURCE=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/MapboxAccessToken.txt\"\n\nif [ ! -s \"$TOKEN_FILE\" ]; then\n  echo \"error: Missing Mapbox public token at $TOKEN_FILE\"\n  exit 1\nfi\n\nmkdir -p \"$(dirname \"$TOKEN_RESOURCE\")\"\ntr -d '\\r\\n' < \"$TOKEN_FILE\" > \"$TOKEN_RESOURCE\"\n";
+			showEnvVarsInLog = 0;
+	};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00000000000000000000013 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000045 /* CheckInActivityAttributes.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000016 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000019 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A0000000000000000000004F /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000046 /* CheckInActivityAttributes.swift in Sources */, A00000000000000000000047 /* CheckInLiveActivityWidget.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A00000000000000000000035 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000010 /* Outly */; targetProxy = A00000000000000000000034 /* PBXContainerItemProxy */; };
+		A00000000000000000000037 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A00000000000000000000010 /* Outly */; targetProxy = A00000000000000000000036 /* PBXContainerItemProxy */; };
+		A00000000000000000000053 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A0000000000000000000004E /* OutlyLiveActivityExtension */; targetProxy = A00000000000000000000048 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A00000000000000000000026 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_OPTIMIZATION_LEVEL = 0; IPHONEOS_DEPLOYMENT_TARGET = 17.0; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		A00000000000000000000027 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; GCC_C_LANGUAGE_STANDARD = gnu17; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; VALIDATE_PRODUCT = YES; }; name = Release; };
+		A00000000000000000000028 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Outly; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking"; INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Outly uses your location once to confirm that you are at the venue and unlock the timed offer."; INFOPLIST_KEY_NSSupportsLiveActivities = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		A00000000000000000000029 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = Outly; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking"; INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Outly uses your location once to confirm that you are at the venue and unlock the timed offer."; INFOPLIST_KEY_NSSupportsLiveActivities = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+		A00000000000000000000030 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Outly.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Outly"; }; name = Debug; };
+		A00000000000000000000031 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Outly.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Outly"; }; name = Release; };
+		A00000000000000000000032 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = Outly; }; name = Debug; };
+		A00000000000000000000033 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = Outly; }; name = Release; };
+		A00000000000000000000055 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = OutlyLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype.liveactivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		A00000000000000000000056 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = OutlyLiveActivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.outly.prototype.liveactivity; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000000000000000000022 /* Build configuration list for PBXProject "Outly" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000026 /* Debug */, A00000000000000000000027 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000023 /* Build configuration list for PBXNativeTarget "Outly" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000028 /* Debug */, A00000000000000000000029 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000024 /* Build configuration list for PBXNativeTarget "OutlyTests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000030 /* Debug */, A00000000000000000000031 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000025 /* Build configuration list for PBXNativeTarget "OutlyUITests" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000032 /* Debug */, A00000000000000000000033 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A00000000000000000000054 /* Build configuration list for PBXNativeTarget "OutlyLiveActivityExtension" */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000055 /* Debug */, A00000000000000000000056 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00000000000000000000042 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mapbox/mapbox-maps-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 11.26.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00000000000000000000041 /* MapboxMaps */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000042 /* XCRemoteSwiftPackageReference "mapbox-maps-ios" */;
+			productName = MapboxMaps;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00000000000000000000001 /* Project object */;
+}

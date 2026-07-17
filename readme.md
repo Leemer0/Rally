@@ -16,9 +16,29 @@ Open `http://localhost:3000` for the interactive mobile prototype. It supports t
 complete mocked journey from account choice and onboarding through venue discovery,
 RSVP, QR check-in, offer redemption, List, filters, and Profile.
 
-The map, authentication, venue data, QR, location, and redemption services are
-prototype adapters or local mock data. The design-system lab remains available at
-`http://localhost:3000/system`.
+## Native iOS MVP
+
+The SwiftUI prototype lives in `ios/Outly.xcodeproj` and targets iOS 17 or later.
+Open the shared `Outly` scheme in Xcode or build it from the command line:
+
+```bash
+xcodebuild -project ios/Outly.xcodeproj \
+  -scheme Outly \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  test
+```
+
+The iOS app uses a native Mapbox discovery surface, Core Location for one-time
+venue-radius verification, and a deterministic local authentication adapter.
+Onboarding, plans, check-ins, and timed offer windows persist locally. Use **Reset
+Demo** in Profile or Settings to return to first launch.
+
+Mapbox and location verification are live. Authentication, venue data, and timed
+offer persistence remain prototype adapters or local fixtures. The design-system
+lab remains available at `http://localhost:3000/system`.
+
+To test the live Track & Field check-in in Simulator, choose **Features → Location
+→ Custom Location** and enter latitude `43.6549`, longitude `-79.4238`.
 
 ## Quality checks
 

@@ -30,6 +30,7 @@ export type PrototypeVenue = {
   description: string;
   activity: VenueActivity;
   marker: { left: number; top: number };
+  markerArt: string;
   ageDistribution: AgeDistribution;
   arrivalWindows: ArrivalWindow[];
   distance: string;
@@ -67,6 +68,7 @@ export const venues: PrototypeVenue[] = [
       "Shuffleboard, bocce, and a big social room built for groups that actually want to mingle.",
     activity: "peak",
     marker: { left: 31, top: 42 },
+    markerArt: "/venue-markers/track-field.png",
     ageDistribution: mockDistribution(27, 3.4),
     arrivalWindows: [
       "8:00–9:00 PM",
@@ -93,6 +95,7 @@ export const venues: PrototypeVenue[] = [
       "A rooftop escape with a high-energy room, skyline views, and a late-night crowd.",
     activity: "busy",
     marker: { left: 57, top: 58 },
+    markerArt: "/venue-markers/lavelle.png",
     ageDistribution: mockDistribution(29, 4.2),
     arrivalWindows: [
       "9:00–10:00 PM",
@@ -118,6 +121,7 @@ export const venues: PrototypeVenue[] = [
       "A warm multi-level space for dinner that rolls naturally into drinks and dancing.",
     activity: "building",
     marker: { left: 69, top: 33 },
+    markerArt: "/venue-markers/baro.png",
     ageDistribution: mockDistribution(31, 4.8),
     arrivalWindows: [
       "8:00–9:00 PM",
@@ -143,6 +147,7 @@ export const venues: PrototypeVenue[] = [
       "A western-inspired party bar with DJs, dancing, and a playful late-night atmosphere.",
     activity: "low",
     marker: { left: 45, top: 24 },
+    markerArt: "/venue-markers/paris-texas.png",
     ageDistribution: {
       status: "limited_data",
       minAge: 19,

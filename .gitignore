@@ -8,5 +8,9 @@ node_modules/
 playwright-report/
 test-results/
 *.tsbuildinfo
+DerivedData/
+ios/build/
+xcuserdata/
+*.xcuserstate
 
 !/.env.example
