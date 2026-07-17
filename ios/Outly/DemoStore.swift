@@ -120,19 +120,7 @@ final class DemoStore {
     }
 
     func setAge(_ age: Int) {
-        state.profile.age = min(40, max(19, age))
-    }
-
-    func setGender(_ gender: GenderIdentity) {
-        state.profile.genderIdentity = gender
-    }
-
-    func setGenderDescription(_ value: String) {
-        state.profile.genderSelfDescription = String(value.prefix(50))
-    }
-
-    func setInterest(_ interest: InterestedIn) {
-        state.profile.interestedIn = [interest]
+        state.profile.age = max(19, age)
     }
 
     func finishOnboarding() {

@@ -247,7 +247,7 @@ struct VenueMarker: View {
         .buttonStyle(.plain)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selected)
         .accessibilityLabel(venue.name)
-        .accessibilityValue("\(venue.goingCount) going, \(activityDescription)")
+        .accessibilityValue("\(venue.goingCount) going tonight")
         .accessibilityHint("Shows this venue")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("venue-marker-\(venue.id)")
@@ -295,15 +295,6 @@ struct VenueMarker: View {
                 .position(coordinate)
         }
         .accessibilityHidden(true)
-    }
-
-    private var activityDescription: String {
-        switch venue.activity {
-        case .low: "low activity"
-        case .building: "activity building"
-        case .busy: "busy"
-        case .peak: "peak activity"
-        }
     }
 
     private var markerHorizontalOffset: CGFloat {
@@ -410,9 +401,13 @@ struct VenuePreviewCard: View {
                         }
                     }
 
-                    Text("\(venue.neighbourhood) · \(venue.category)")
+                    Text(venue.neighbourhood)
                         .font(.subheadline)
                         .foregroundStyle(theme.secondaryText)
+                    Text(venue.hours)
+                        .font(.caption)
+                        .foregroundStyle(theme.mutedText)
+                        .padding(.top, 2)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
@@ -422,33 +417,12 @@ struct VenuePreviewCard: View {
             }
             .foregroundStyle(theme.primaryText)
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    Text("\(venue.goingCount) going")
-                    Text("·").foregroundStyle(theme.mutedText)
-                    Text("Peak \(venue.expectedPeakTime)")
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(venue.goingCount) going")
-                    Text("Peak \(venue.expectedPeakTime)")
-                }
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(theme.primaryText)
-
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 9) {
-                    AgeBarPill(distribution: venue.ageDistribution, compact: true)
-                    GenderMixLine(mix: venue.genderMix, compact: true)
-                }
-            } else {
-                HStack(alignment: .center, spacing: 14) {
-                    AgeBarPill(distribution: venue.ageDistribution, compact: true)
-                        .frame(maxWidth: .infinity)
-                    GenderMixLine(mix: venue.genderMix, compact: true)
-                        .frame(maxWidth: .infinity)
-                }
-            }
+            CrowdInsightsSurface(
+                venue: venue,
+                goingCount: attendanceCount,
+                compact: true,
+                showsContainer: false
+            )
 
             if let offer = venue.offer {
                 Label(offer, systemImage: "ticket.fill")
@@ -466,6 +440,10 @@ struct VenuePreviewCard: View {
 
     private var isCheckedIn: Bool {
         store.checkedInVenue?.id == venue.id
+    }
+
+    private var attendanceCount: Int {
+        venue.goingCount + (isCurrentPlan ? 1 : 0)
     }
 
     private func primaryActionButton(title: String, now: Date) -> some View {
@@ -608,18 +586,12 @@ struct VenueListCard: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(venue.name).font(.headline).foregroundStyle(theme.primaryText)
-                    Text("\(venue.neighbourhood) · \(venue.category)")
+                    Text(venue.neighbourhood)
                         .font(.caption).foregroundStyle(theme.secondaryText)
+                    Text(venue.hours)
+                        .font(.caption2).foregroundStyle(theme.mutedText)
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("\(venue.goingCount) going")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(theme.primaryText)
-                    Text("Peak \(venue.expectedPeakTime)")
-                        .font(.caption)
-                        .foregroundStyle(theme.mutedText)
-                }
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(theme.mutedText)
@@ -630,7 +602,7 @@ struct VenueListCard: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(venue.name), \(venue.neighbourhood), \(venue.category), \(venue.goingCount) going, peak \(venue.expectedPeakTime)"
+            "\(venue.name), \(venue.neighbourhood), \(venue.hours)"
         )
     }
 }

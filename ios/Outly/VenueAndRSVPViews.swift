@@ -14,55 +14,10 @@ struct VenueDetailView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .center) {
-                        StatusPill(
-                            text: isCheckedIn ? "Checked in" : venue.activity.rawValue.capitalized,
-                            tone: isCheckedIn || venue.activity == .peak ? .accent : .neutral
-                        )
-                        Spacer()
-                        Text(venue.distance)
-                            .font(.caption)
-                            .foregroundStyle(theme.mutedText)
-                    }
+                    VenueDetailHeader(venue: venue, isCheckedIn: isCheckedIn)
 
-                    Text(venue.name)
-                        .font(.largeTitle.weight(.bold))
-                        .padding(.top, 14)
-                    Text("\(venue.neighbourhood) · \(venue.category)")
-                        .font(.subheadline)
-                        .foregroundStyle(theme.secondaryText)
-                        .padding(.top, 3)
-                    Text(venue.hours)
-                        .font(.caption)
-                        .foregroundStyle(theme.mutedText)
-                        .padding(.top, 5)
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 10) {
-                            Text("\(attendanceCount) going")
-                            Spacer()
-                            Text("Peak \(venue.expectedPeakTime)")
-                        }
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("\(attendanceCount) going")
-                            Text("Peak \(venue.expectedPeakTime)")
-                        }
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(theme.primaryText)
-                    .padding(.vertical, 14)
-                    .overlay(alignment: .top) { Divider().overlay(theme.border) }
-                    .overlay(alignment: .bottom) { Divider().overlay(theme.border) }
-                    .padding(.top, 18)
-
-                    Text(venue.description)
-                        .font(.body)
-                        .foregroundStyle(theme.secondaryText)
-                        .lineSpacing(3)
+                    CrowdInsightsSurface(venue: venue, goingCount: attendanceCount)
                         .padding(.top, 20)
-
-                    CrowdInsightsSurface(venue: venue)
-                        .padding(.top, 22)
 
                     if let offer = venue.offer {
                         VStack(alignment: .leading, spacing: 7) {
@@ -147,11 +102,12 @@ struct RSVPReviewView: View {
                 OutlyCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(venue.name).font(.title2.weight(.bold))
-                        Text("\(venue.neighbourhood) · \(venue.category)")
+                        Text(venue.neighbourhood)
                             .font(.subheadline).foregroundStyle(theme.secondaryText)
+                        Text(venue.hours)
+                            .font(.caption).foregroundStyle(theme.mutedText)
                         Divider().overlay(theme.border)
                         ReviewRow(label: "Date", value: tonightLabel)
-                        ReviewRow(label: "Expected peak", value: venue.expectedPeakTime)
                     }
                 }
 
@@ -185,7 +141,6 @@ struct RSVPReviewView: View {
 
 struct RSVPSuccessView: View {
     @Environment(AppRouter.self) private var router
-    @Environment(OutlyTheme.self) private var theme
     let venueID: String
 
     private var venue: Venue { VenueCatalog.venue(id: venueID) }
@@ -199,10 +154,6 @@ struct RSVPSuccessView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 24)
                 .accessibilityIdentifier("plan-confirmed")
-            Text("Peak around \(venue.expectedPeakTime)")
-                .font(.subheadline)
-                .foregroundStyle(theme.secondaryText)
-                .padding(.top, 10)
             Spacer()
 
             VStack(spacing: 9) {
@@ -217,6 +168,62 @@ struct RSVPSuccessView: View {
         .padding(.bottom, 12)
         .toolbar(.hidden, for: .navigationBar)
         .outlyScreenBackground()
+    }
+}
+
+private struct VenueDetailHeader: View {
+    @Environment(OutlyTheme.self) private var theme
+    let venue: Venue
+    let isCheckedIn: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if isCheckedIn {
+                StatusPill(text: "Checked in", tone: .accent)
+                    .padding(.bottom, 12)
+            }
+
+            Text(venue.name)
+                .font(.largeTitle.weight(.bold))
+
+            Text(venue.neighbourhood)
+                .font(.subheadline)
+                .foregroundStyle(theme.secondaryText)
+                .padding(.top, 3)
+
+            Text(venue.hours)
+                .font(.caption)
+                .foregroundStyle(theme.mutedText)
+                .padding(.top, 5)
+
+            Link(destination: venue.appleMapsURL) {
+                HStack(spacing: 10) {
+                    Image(systemName: "mappin")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(theme.accent)
+                        .accessibilityHidden(true)
+
+                    Text(venue.address)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(theme.primaryText)
+                        .multilineTextAlignment(.leading)
+
+                    Spacer(minLength: 12)
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(theme.secondaryText)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: OutlyMetrics.minimumTouchTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(venue.address), open in Maps")
+            .accessibilityHint("Opens Apple Maps")
+            .accessibilityIdentifier("venue-address")
+            .padding(.top, 8)
+        }
     }
 }
 

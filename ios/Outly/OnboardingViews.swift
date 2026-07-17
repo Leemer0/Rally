@@ -197,6 +197,7 @@ private struct AuthenticationView: View {
     @Environment(OutlyTheme.self) private var theme
     @Environment(\.appServices) private var services
     @State private var loadingProvider: AuthProvider?
+    @State private var authenticationTask: Task<Void, Never>?
     @State private var errorMessage: String?
     @AccessibilityFocusState private var errorIsFocused: Bool
 
@@ -236,12 +237,17 @@ private struct AuthenticationView: View {
                 .padding(.bottom, 30)
             }
         }
+        .onDisappear {
+            authenticationTask?.cancel()
+            authenticationTask = nil
+        }
     }
 
     @ViewBuilder
     private func authButton(_ provider: AuthProvider, systemImage: String) -> some View {
         let button = Button {
-            Task { await authenticate(provider) }
+            guard authenticationTask == nil else { return }
+            authenticationTask = Task { await authenticate(provider) }
         } label: {
             HStack {
                 Image(systemName: systemImage)
@@ -264,7 +270,10 @@ private struct AuthenticationView: View {
         loadingProvider = provider
         errorMessage = nil
         errorIsFocused = false
-        defer { loadingProvider = nil }
+        defer {
+            loadingProvider = nil
+            authenticationTask = nil
+        }
         do {
             _ = try await services.authenticate(provider)
             guard !Task.isCancelled else { return }
@@ -345,36 +354,50 @@ private struct NameOnboardingView: View {
 
 private struct AgeOnboardingView: View {
     @Environment(DemoStore.self) private var store
+    @Environment(OutlyTheme.self) private var theme
+    @FocusState private var focused: Bool
+    @State private var age = ""
+
+    private var enteredAge: Int? {
+        Int(age)
+    }
+
+    private var canFinish: Bool {
+        guard let enteredAge else { return false }
+        return enteredAge >= 19
+    }
 
     var body: some View {
         OnboardingShell(
             step: 2,
             title: "How old are you?",
-            description: "Ages 19–40.",
             onBack: { store.go(to: .name) }
         ) {
-            Picker(
-                "Age",
-                selection: Binding(
-                    get: { store.profile.age },
-                    set: { store.setAge($0) }
-                )
-            ) {
-                ForEach(19 ... 40, id: \.self) { age in
-                    Text("\(age)")
-                        .tag(age)
+            TextField("Age", text: $age)
+                .keyboardType(.numberPad)
+                .textContentType(.none)
+                .focused($focused)
+                .padding(.horizontal, 15)
+                .frame(minHeight: OutlyMetrics.controlHeight)
+                .background(theme.surface, in: RoundedRectangle(cornerRadius: OutlyMetrics.buttonRadius, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: OutlyMetrics.buttonRadius).stroke(theme.border, lineWidth: 1) }
+                .onChange(of: age) { _, newValue in
+                    age = newValue.filter(\.isNumber)
                 }
-            }
-            .pickerStyle(.wheel)
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel("Age")
-            .accessibilityValue("\(store.profile.age)")
-            .accessibilityIdentifier("age-picker")
+                .accessibilityIdentifier("age-input")
         } footer: {
-            Button("Finish") { store.go(to: .complete) }
+            Button("Finish") {
+                guard let enteredAge else { return }
+                store.setAge(enteredAge)
+                store.go(to: .complete)
+            }
                 .buttonStyle(StandardActionButtonStyle())
+                .disabled(!canFinish)
                 .accessibilityIdentifier("onboarding-next")
+        }
+        .onAppear {
+            age = "\(store.profile.age)"
+            focused = true
         }
     }
 }

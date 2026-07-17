@@ -68,7 +68,6 @@ private struct VenueSearchSheet: View {
         return VenueCatalog.venues.filter {
             $0.name.localizedCaseInsensitiveContains(query)
                 || $0.neighbourhood.localizedCaseInsensitiveContains(query)
-                || $0.category.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -85,19 +84,17 @@ private struct VenueSearchSheet: View {
 
                         VStack(alignment: .leading, spacing: 3) {
                             Text(venue.name).font(.headline).foregroundStyle(theme.primaryText)
-                            Text("\(venue.neighbourhood) · \(venue.category)")
+                            Text(venue.neighbourhood)
                                 .font(.subheadline)
                                 .foregroundStyle(theme.secondaryText)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(venue.goingCount)")
-                                .font(.headline)
-                                .foregroundStyle(theme.accent)
-                            Text("going")
+                            Text(venue.hours)
                                 .font(.caption)
                                 .foregroundStyle(theme.mutedText)
                         }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(theme.mutedText)
                     }
                     .contentShape(Rectangle())
                 }

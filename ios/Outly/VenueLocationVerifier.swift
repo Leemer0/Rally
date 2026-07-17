@@ -61,7 +61,8 @@ enum VenueGeofence {
     }
 
     static func isFresh(_ location: CLLocation, now: Date = Date()) -> Bool {
-        now.timeIntervalSince(location.timestamp) <= maximumLocationAge
+        let age = now.timeIntervalSince(location.timestamp)
+        return age >= 0 && age <= maximumLocationAge
     }
 }
 
@@ -101,23 +102,33 @@ final class VenueLocationVerifier: NSObject, @preconcurrency CLLocationManagerDe
             throw LocationVerificationError.servicesDisabled
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            guard self.continuation == nil else {
-                continuation.resume(throwing: LocationVerificationError.requestInProgress)
-                return
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                guard self.continuation == nil else {
+                    continuation.resume(throwing: LocationVerificationError.requestInProgress)
+                    return
+                }
+
+                self.continuation = continuation
+
+                switch manager.authorizationStatus {
+                case .authorizedAlways, .authorizedWhenInUse:
+                    manager.requestLocation()
+                case .notDetermined:
+                    manager.requestWhenInUseAuthorization()
+                case .denied, .restricted:
+                    finish(with: .failure(LocationVerificationError.permissionDenied))
+                @unknown default:
+                    finish(with: .failure(LocationVerificationError.locationUnavailable))
+                }
             }
-
-            self.continuation = continuation
-
-            switch manager.authorizationStatus {
-            case .authorizedAlways, .authorizedWhenInUse:
-                manager.requestLocation()
-            case .notDetermined:
-                manager.requestWhenInUseAuthorization()
-            case .denied, .restricted:
-                finish(with: .failure(LocationVerificationError.permissionDenied))
-            @unknown default:
-                finish(with: .failure(LocationVerificationError.locationUnavailable))
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.finish(with: .failure(CancellationError()))
             }
         }
     }

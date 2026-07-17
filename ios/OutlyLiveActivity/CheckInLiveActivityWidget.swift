@@ -181,6 +181,7 @@ private struct ActivityStatusView: View {
                     )
                     .font(compact ? .caption.weight(.semibold) : .title2.weight(.medium))
                     .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
                     .foregroundStyle(compact ? LiveActivityPalette.accent : LiveActivityPalette.primary)
                     .contentTransition(.numericText(countsDown: true))
 
@@ -220,13 +221,13 @@ private struct OutlyActivityMark: View {
     var accessibilityLabel = "Outly"
 
     var body: some View {
-        Image("winged-o")
+        Image("WingedOMark")
             .renderingMode(.original)
             .resizable()
             .scaledToFit()
             .frame(width: width, height: width / 2)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -254,6 +255,7 @@ private struct LiveOfferProgress: View {
     var body: some View {
         ProgressView(timerInterval: interval, countsDown: true)
             .progressViewStyle(.linear)
+            .labelsHidden()
             .tint(LiveActivityPalette.accent)
             .scaleEffect(y: 0.65, anchor: .center)
             .accessibilityHidden(true)

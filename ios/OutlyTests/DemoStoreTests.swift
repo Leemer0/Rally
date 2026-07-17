@@ -22,7 +22,7 @@ final class DemoStoreTests: XCTestCase {
         super.tearDown()
     }
 
-    func testProfileValidationAndBounds() {
+    func testProfileValidationAndMinimumAge() {
         let store = DemoStore(defaults: defaults, storageKey: "state")
 
         XCTAssertFalse(store.submitName())
@@ -32,7 +32,7 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(store.state.onboardingStage, .age)
 
         store.setAge(99)
-        XCTAssertEqual(store.profile.age, 40)
+        XCTAssertEqual(store.profile.age, 99)
         store.setAge(-1)
         XCTAssertEqual(store.profile.age, 19)
     }
@@ -165,32 +165,6 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(plan.dateLabel, "Tonight")
     }
 
-    func testAverageCheckInTimeHandlesMidnightAndEmptyHistory() {
-        let aroundMidnight = [
-            NightCheckInSample(hour: 23, minute: 30),
-            NightCheckInSample(hour: 0, minute: 30),
-        ]
-
-        XCTAssertEqual(AverageCheckInTime.minuteOfDay(for: aroundMidnight), 0)
-        XCTAssertEqual(AverageCheckInTime.displayTime(for: aroundMidnight), "12:00 AM")
-        XCTAssertNil(AverageCheckInTime.minuteOfDay(for: []))
-        XCTAssertNil(AverageCheckInTime.displayTime(for: []))
-    }
-
-    func testCatalogPeakTimesAreDerivedFromCheckInAverages() {
-        let expected = [
-            "track-field": "10:30 PM",
-            "lavelle": "11:00 PM",
-            "baro": "9:30 PM",
-            "paris-texas": "11:30 PM",
-        ]
-
-        for venue in VenueCatalog.venues {
-            XCTAssertFalse(venue.historicalCheckIns.isEmpty)
-            XCTAssertEqual(venue.expectedPeakTime, expected[venue.id])
-        }
-    }
-
     func testReplacingCurrentRouteDoesNotLeaveCheckInBehind() {
         let router = AppRouter()
         router.explorePath = [.venueDetail("track-field"), .checkInIntro("track-field")]
@@ -253,6 +227,19 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(VenueGeofence.maximumAcceptedAccuracy, 75)
     }
 
+    func testVenueGeofenceRejectsFutureLocationSamples() {
+        let now = Date(timeIntervalSince1970: 1_721_000_500)
+        let futureLocation = CLLocation(
+            coordinate: VenueCatalog.venue(id: "track-field").coordinate,
+            altitude: 0,
+            horizontalAccuracy: 10,
+            verticalAccuracy: 10,
+            timestamp: now.addingTimeInterval(1)
+        )
+
+        XCTAssertFalse(VenueGeofence.isFresh(futureLocation, now: now))
+    }
+
     func testVenueMapPinAssetsAreBundled() {
         let expectedAssets = [
             "track-field": "VenuePinTrackField",
@@ -267,6 +254,18 @@ final class DemoStoreTests: XCTestCase {
             XCTAssertEqual(assetName, expectedAssets[venue.id])
             guard let assetName else { continue }
             XCTAssertNotNil(UIImage(named: assetName), "Missing map marker asset: \(assetName)")
+        }
+    }
+
+    func testVenueMapLinksContainVenueNameAndCoordinates() throws {
+        for venue in VenueCatalog.venues {
+            let components = try XCTUnwrap(URLComponents(url: venue.appleMapsURL, resolvingAgainstBaseURL: false))
+            let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
+
+            XCTAssertEqual(components.scheme, "https")
+            XCTAssertEqual(components.host, "maps.apple.com")
+            XCTAssertEqual(query["q"] ?? nil, venue.name)
+            XCTAssertEqual(query["ll"] ?? nil, "\(venue.latitude),\(venue.longitude)")
         }
     }
 }

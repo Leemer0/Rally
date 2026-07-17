@@ -301,7 +301,6 @@ struct AgeBarPill: View {
     @Environment(OutlyTheme.self) private var theme
     let distribution: AgeDistribution
     var compact = false
-    var showsContainer = true
 
     private var averageAge: Int? { distribution.averageAge }
 
@@ -347,31 +346,16 @@ struct AgeBarPill: View {
                     HStack {
                         Text(distribution.points.first.map { "\($0.age)" } ?? "")
                         Spacer()
-                        if let peakAge = distribution.peakAge {
-                            Text("Peak \(peakAge)")
-                        }
-                        Spacer()
                         Text(distribution.points.last.map { "\($0.age)+" } ?? "")
                     }
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(theme.mutedText)
                 }
             }
-            .padding(compact ? 10 : 12)
-            .background(
-                showsContainer ? theme.primaryText.opacity(0.035) : .clear,
-                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-            )
-            .overlay {
-                if showsContainer {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(theme.border, lineWidth: 0.75)
-                }
-            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Age distribution")
             .accessibilityValue(
-                "Average age \(averageAge), peak age \(distribution.peakAge ?? averageAge), range \(distribution.points.first?.age ?? 0) to \(distribution.points.last?.age ?? 0)"
+                "Average age \(averageAge), range \(distribution.points.first?.age ?? 0) to \(distribution.points.last?.age ?? 0)"
             )
         } else {
             Text("Crowd data pending")
@@ -432,32 +416,48 @@ struct GenderMixLine: View {
 
 struct CrowdInsightsSurface: View {
     @Environment(OutlyTheme.self) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let venue: Venue
+    let goingCount: Int
+    var compact = false
+    var showsContainer = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Tonight’s crowd")
-                    .font(.headline)
+                    .font(compact ? .subheadline.weight(.semibold) : .headline)
                 Spacer()
-                Text("Live estimate")
-                    .font(.caption)
-                    .foregroundStyle(theme.mutedText)
+                Text("\(goingCount) going")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(theme.primaryText)
             }
 
-            AgeBarPill(distribution: venue.ageDistribution, showsContainer: false)
-
-            GenderMixLine(mix: venue.genderMix)
-                .padding(.horizontal, 2)
+            if compact, !dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .center, spacing: 14) {
+                    AgeBarPill(distribution: venue.ageDistribution, compact: true)
+                        .frame(maxWidth: .infinity)
+                    GenderMixLine(mix: venue.genderMix, compact: true)
+                        .frame(maxWidth: .infinity)
+                }
+            } else {
+                VStack(spacing: compact ? 9 : 14) {
+                    AgeBarPill(distribution: venue.ageDistribution, compact: compact)
+                    GenderMixLine(mix: venue.genderMix, compact: compact)
+                        .padding(.horizontal, compact ? 0 : 2)
+                }
+            }
         }
-        .padding(14)
+        .padding(showsContainer ? 14 : 0)
         .background(
-            theme.surface,
+            showsContainer ? theme.surface : .clear,
             in: RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous)
-                .stroke(theme.border, lineWidth: 0.75)
+            if showsContainer {
+                RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous)
+                    .stroke(theme.border, lineWidth: 0.75)
+            }
         }
     }
 }

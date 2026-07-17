@@ -65,6 +65,23 @@ final class OutlyUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["expired-offer-pass"].exists)
     }
 
+    func testVenueDetailShowsAddressLink() {
+        relaunch(screen: "venue-detail")
+
+        let addressLink = app.descendants(matching: .any)["venue-address"]
+        XCTAssertTrue(addressLink.waitForExistence(timeout: 3))
+        XCTAssertTrue(addressLink.label.contains("860 College St"))
+        XCTAssertTrue(addressLink.label.contains("open in Maps"))
+        XCTAssertTrue(app.staticTexts["Ossington"].exists)
+        XCTAssertTrue(app.staticTexts["Open 5:00 PM–2:00 AM"].exists)
+        XCTAssertTrue(app.staticTexts["Tonight’s crowd"].exists)
+        XCTAssertTrue(app.staticTexts["46 going"].exists)
+        XCTAssertFalse(app.staticTexts["Peak"].exists)
+        XCTAssertFalse(app.staticTexts["1.2 km"].exists)
+        XCTAssertFalse(app.staticTexts["Games Bar"].exists)
+        XCTAssertFalse(app.staticTexts["Live estimate"].exists)
+    }
+
     func testLocationConfirmedFixture() {
         relaunch(screen: "checkin-confirmed")
 

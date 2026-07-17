@@ -1,63 +1,59 @@
 # Outly
 
-Outly is a mobile-first nightlife discovery app for deciding where to go based on
-aggregated social momentum. The product is being built as a Next.js web MVP around a
-versioned API that can later support a separate SwiftUI client.
+Outly is an iPhone nightlife discovery app for deciding where to go based on
+aggregated social momentum. The product currently consists of the native SwiftUI
+app only; the venue-facing web application will be designed separately later.
 
-## Local development
+## Requirements
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
+- iOS 17 or later
+- Xcode with the shared `Outly` scheme
+- A public Mapbox access token beginning with `pk.`
 
-Open `http://localhost:3000` for the interactive mobile prototype. It supports the
-complete mocked journey from account choice and onboarding through venue discovery,
-RSVP, QR check-in, offer redemption, List, filters, and Profile.
+Save the Mapbox token in `~/.mapbox`. The build copies it into the app bundle
+without committing it to the repository.
 
-## Native iOS MVP
+## Run the app
 
-The SwiftUI prototype lives in `ios/Outly.xcodeproj` and targets iOS 17 or later.
-Open the shared `Outly` scheme in Xcode or build it from the command line:
+Open `ios/Outly.xcodeproj` in Xcode, select the `Outly` scheme, and run it on an
+iPhone simulator. To build and test from the command line:
 
 ```bash
 xcodebuild -project ios/Outly.xcodeproj \
   -scheme Outly \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   test
 ```
 
-The iOS app uses a native Mapbox discovery surface, Core Location for one-time
-venue-radius verification, and a deterministic local authentication adapter.
-Onboarding, plans, check-ins, and timed offer windows persist locally. Use **Reset
-Demo** in Profile or Settings to return to first launch.
+To test the live Track & Field check-in in Simulator, choose **Features →
+Location → Custom Location** and enter latitude `43.6549`, longitude `-79.4238`.
 
-Mapbox and location verification are live. Authentication, venue data, and timed
-offer persistence remain prototype adapters or local fixtures. The design-system
-lab remains available at `http://localhost:3000/system`.
+## Current implementation
 
-To test the live Track & Field check-in in Simulator, choose **Features → Location
-→ Custom Location** and enter latitude `43.6549`, longitude `-79.4238`.
+The app uses SwiftUI, Mapbox for venue discovery, Core Location for one-time
+venue-radius verification, and a Live Activity for active offers. Authentication,
+venue data, plans, check-ins, and offer persistence currently use deterministic
+local adapters so the complete mobile journey works without a backend.
 
-## Quality checks
+Use **Reset Demo** in Profile or Settings to return the app to first launch.
 
-```bash
-npm run format:check
-npm run lint
-npm run typecheck
-npm run test
-npm run test:e2e
-npm run build
-```
+## Repository structure
 
-## Architecture boundaries
+- `ios/Outly/` — iPhone application source
+- `ios/OutlyLiveActivity/` — Live Activity extension
+- `ios/Shared/` — models shared by the app and extension
+- `ios/OutlyTests/` and `ios/OutlyUITests/` — automated tests
+- `ios/Screenshots/` and `ios/DemoVideos/` — current product references
+- `contracts/` — backend OpenAPI contract and portable examples
+- `design-system/` and `design-concepts/` — product design guidance
 
-- `contracts/` — public OpenAPI contract and portable examples
-- `src/contracts/` — client-safe DTOs and schemas
-- `src/api-client/` — typed access to `/api/v1`
-- `src/domain/` — framework-independent business rules
-- `src/server/` — server-only orchestration and persistence
-- `src/components/` — presentation components; never direct database access
+## Backend boundary
 
-Application routes will live under `/api/v1` and use a consistent data/error envelope.
+`contracts/openapi.yaml` is the starting point for the versioned API. Before
+connecting the app, define canonical onboarding and venue DTOs there. The server
+must be authoritative for authentication, attendance aggregation, check-in
+eligibility, and offer issuance or redemption; client location checks are a UX
+aid, not a security boundary.
+
+No web application is currently included. The future venue portal should be
+introduced as a separate target once its product and API requirements are ready.

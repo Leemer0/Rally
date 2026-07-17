@@ -12,7 +12,7 @@ final class OutlyTheme {
     var sunkenSurface = Color(hex: 0x0B1016)
     var primaryText = Color(hex: 0xF5F7F8)
     var secondaryText = Color(hex: 0xB1B8C2)
-    var mutedText = Color(hex: 0x7E8793)
+    var mutedText = Color(hex: 0x85919F)
     var accent = Color(hex: 0xC7FF3D)
     var accentForeground = Color(hex: 0x101507)
     var success = Color(hex: 0x63E681)
