@@ -11,10 +11,21 @@ export const metadata: Metadata = {
   },
   description:
     "See where Toronto is going tonight. Pick a bar. Meet in real life.",
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    title: "Outly",
-    description: "See where Toronto is going tonight.",
+    title: "Outly — Meet in real life.",
+    description: "See where Toronto is going tonight. Pick a bar. Meet in real life.",
+    url: "/",
+    siteName: "Outly",
+    locale: "en_CA",
     type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Outly — Meet in real life.",
+    description: "See where Toronto is going tonight. Pick a bar. Meet in real life.",
   },
 };
 
