@@ -82,6 +82,40 @@ final class OutlyUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Live estimate"].exists)
     }
 
+    func testFacebookLoginProviderOpensTheApp() {
+        relaunch(screen: "auth-login")
+
+        let facebookButton = app.buttons["auth-facebook"]
+        XCTAssertTrue(facebookButton.waitForExistence(timeout: 3))
+        XCTAssertEqual(facebookButton.label, "Continue with Facebook")
+        facebookButton.tap()
+
+        XCTAssertTrue(app.otherElements["toronto-map"].waitForExistence(timeout: 5))
+    }
+
+    func testAuthenticationProvidersAreCenteredAndAppleOpensTheApp() {
+        relaunch(screen: "auth-login")
+
+        let providerIDs = ["auth-apple", "auth-google", "auth-facebook", "auth-email"]
+        let windowMidX = app.windows.firstMatch.frame.midX
+        let appleButton = app.buttons["auth-apple"]
+        XCTAssertTrue(appleButton.waitForExistence(timeout: 3))
+        let referenceFrame = appleButton.frame
+
+        for identifier in providerIDs {
+            let button = app.buttons[identifier]
+            XCTAssertTrue(button.waitForExistence(timeout: 3))
+            XCTAssertEqual(button.frame.midX, windowMidX, accuracy: 2)
+            XCTAssertEqual(button.frame.width, referenceFrame.width, accuracy: 1)
+            XCTAssertEqual(button.frame.height, referenceFrame.height, accuracy: 1)
+        }
+
+        XCTAssertTrue(appleButton.label.contains("Continue with Apple"))
+        appleButton.tap()
+
+        XCTAssertTrue(app.otherElements["toronto-map"].waitForExistence(timeout: 5))
+    }
+
     func testLocationConfirmedFixture() {
         relaunch(screen: "checkin-confirmed")
 

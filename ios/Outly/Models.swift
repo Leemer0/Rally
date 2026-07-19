@@ -2,13 +2,17 @@ import CoreLocation
 import Foundation
 
 enum AuthProvider: String, Codable, Sendable {
+    case apple
     case email
     case google
+    case facebook
 
     var title: String {
         switch self {
+        case .apple: "Apple"
         case .email: "Email"
         case .google: "Google"
+        case .facebook: "Facebook"
         }
     }
 }

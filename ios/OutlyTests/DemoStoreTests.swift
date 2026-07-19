@@ -103,6 +103,20 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(store.profile.firstName, "Liam")
     }
 
+    func testDemoAuthenticationSupportsFacebook() async throws {
+        let userID = try await AppServices.demo.authenticate(.facebook)
+
+        XCTAssertEqual(userID, "demo-facebook-user")
+        XCTAssertEqual(AuthProvider.facebook.title, "Facebook")
+    }
+
+    func testDemoAuthenticationSupportsApple() async throws {
+        let userID = try await AppServices.demo.authenticate(.apple)
+
+        XCTAssertEqual(userID, "demo-apple-user")
+        XCTAssertEqual(AuthProvider.apple.title, "Apple")
+    }
+
     func testActivePresenceRequiresTimestampAndExpiresAfterTwelveHours() throws {
         let checkedInAt = Date(timeIntervalSince1970: 1_721_000_500)
         let store = DemoStore(defaults: defaults, storageKey: "state")

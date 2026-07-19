@@ -202,39 +202,70 @@ private struct AuthenticationView: View {
     @AccessibilityFocusState private var errorIsFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             FlowHeader { store.go(to: .welcome) }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    WingedOMarkView(compact: true)
-                    Text(store.authIntent == .signUp ? "Create your account." : "Welcome back.")
-                        .font(.largeTitle.weight(.bold))
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: OutlyMetrics.spacing24)
+
+                        WingedOMarkView(compact: true)
+
+                        Text(store.authIntent == .signUp ? "Create your account." : "Welcome back.")
+                            .font(.largeTitle.weight(.bold))
+                            .multilineTextAlignment(.center)
+                            .padding(.top, OutlyMetrics.spacing24)
+
+                        Text(store.authIntent == .signUp ? "Two quick details. Nothing public." : "Continue to tonight’s map.")
+                            .font(.body)
+                            .foregroundStyle(theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4)
+                            .padding(.top, OutlyMetrics.spacing12)
+
+                        VStack(spacing: OutlyMetrics.spacing12) {
+                            authButton(.apple) {
+                                Image(systemName: "apple.logo")
+                                    .imageScale(.large)
+                            }
+                                .accessibilityIdentifier("auth-apple")
+
+                            authButton(.google) {
+                                Image("GoogleSignInMark")
+                                    .resizable()
+                                    .scaledToFit()
+                            }
+                                .accessibilityIdentifier("auth-google")
+
+                            authButton(.facebook) {
+                                FacebookAuthMark()
+                            }
+                                .accessibilityIdentifier("auth-facebook")
+
+                            authButton(.email) {
+                                Image(systemName: "envelope.fill")
+                            }
+                                .accessibilityIdentifier("auth-email")
+                        }
                         .padding(.top, OutlyMetrics.spacing32)
-                    Text(store.authIntent == .signUp ? "Two quick details. Nothing public." : "Continue to tonight’s map.")
-                        .font(.body)
-                        .foregroundStyle(theme.secondaryText)
-                        .lineSpacing(4)
-                        .padding(.top, 16)
 
-                    VStack(spacing: 12) {
-                        authButton(.email, systemImage: "envelope.fill")
-                            .accessibilityIdentifier("auth-email")
-                        authButton(.google, systemImage: "person.crop.circle")
-                    }
-                    .padding(.top, OutlyMetrics.spacing32)
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.caption)
+                                .foregroundStyle(theme.error)
+                                .multilineTextAlignment(.center)
+                                .padding(.top, 14)
+                                .accessibilityLabel("Error: \(errorMessage)")
+                                .accessibilityFocused($errorIsFocused)
+                        }
 
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(theme.error)
-                            .padding(.top, 14)
-                            .accessibilityLabel("Error: \(errorMessage)")
-                            .accessibilityFocused($errorIsFocused)
+                        Spacer(minLength: OutlyMetrics.spacing24)
                     }
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: proxy.size.height)
+                    .padding(.horizontal, OutlyMetrics.edge)
                 }
-                .padding(.horizontal, OutlyMetrics.edge)
-                .padding(.bottom, 30)
             }
         }
         .onDisappear {
@@ -244,26 +275,48 @@ private struct AuthenticationView: View {
     }
 
     @ViewBuilder
-    private func authButton(_ provider: AuthProvider, systemImage: String) -> some View {
-        let button = Button {
-            guard authenticationTask == nil else { return }
-            authenticationTask = Task { await authenticate(provider) }
+    private func authButton<Icon: View>(
+        _ provider: AuthProvider,
+        @ViewBuilder icon: () -> Icon
+    ) -> some View {
+        Button {
+            beginAuthentication(with: provider)
         } label: {
-            HStack {
-                Image(systemName: systemImage)
+            ZStack {
                 Text("Continue with \(provider.title)")
-                Spacer()
-                if loadingProvider == provider { ProgressView().tint(theme.primaryText) }
+                    .lineLimit(1)
+
+                HStack {
+                    icon()
+                        .frame(width: 20, height: 20)
+                        .accessibilityHidden(true)
+
+                    Spacer()
+
+                    if loadingProvider == provider {
+                        ProgressView()
+                            .tint(progressTint(for: provider))
+                            .accessibilityHidden(true)
+                    }
+                }
             }
             .padding(.horizontal, 18)
         }
         .disabled(loadingProvider != nil)
+        .buttonStyle(AuthenticationProviderButtonStyle(provider: provider))
+    }
 
-        if provider == .email {
-            button.buttonStyle(StandardActionButtonStyle())
-        } else {
-            button.buttonStyle(SecondaryButtonStyle())
+    private func progressTint(for provider: AuthProvider) -> Color {
+        switch provider {
+        case .apple: .black
+        case .facebook: .white
+        case .google, .email: theme.primaryText
         }
+    }
+
+    private func beginAuthentication(with provider: AuthProvider) {
+        guard authenticationTask == nil else { return }
+        authenticationTask = Task { await authenticate(provider) }
     }
 
     private func authenticate(_ provider: AuthProvider) async {
@@ -290,6 +343,67 @@ private struct AuthenticationView: View {
             errorIsFocused = true
             UIAccessibility.post(notification: .announcement, argument: message)
         }
+    }
+}
+
+private struct AuthenticationProviderButtonStyle: ButtonStyle {
+    @Environment(OutlyTheme.self) private var theme
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let provider: AuthProvider
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: OutlyMetrics.controlHeight)
+            .foregroundStyle(foregroundColor)
+            .background(
+                backgroundColor.opacity(configuration.isPressed ? 0.76 : 1),
+                in: RoundedRectangle(cornerRadius: OutlyMetrics.buttonRadius, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: OutlyMetrics.buttonRadius, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            }
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .opacity(isEnabled ? 1 : 0.58)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    private var backgroundColor: Color {
+        switch provider {
+        case .apple: .white
+        case .facebook: Color(hex: 0x1877F2)
+        case .google: Color(hex: 0x131314)
+        case .email: theme.elevatedSurface
+        }
+    }
+
+    private var foregroundColor: Color {
+        switch provider {
+        case .apple: .black
+        case .facebook: .white
+        case .google, .email: theme.primaryText
+        }
+    }
+
+    private var borderColor: Color {
+        switch provider {
+        case .google: Color(hex: 0x8E918F)
+        case .email: theme.border
+        case .facebook, .apple: .clear
+        }
+    }
+}
+
+private struct FacebookAuthMark: View {
+    var body: some View {
+        Text("f")
+            .font(.system(size: 20, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .offset(y: 1)
+        .frame(width: 20, height: 20)
     }
 }
 
