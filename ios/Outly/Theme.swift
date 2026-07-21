@@ -26,6 +26,7 @@ final class OutlyTheme {
     var mapMarkerBusy = Color(hex: 0x6A7F91)
     var crowdCool = Color(hex: 0x5C9DFF)
     var crowdWarm = Color(hex: 0xFF76B8)
+    var partnerAccent = Color(hex: 0x7FA8F5)
 }
 
 enum OutlyMetrics {

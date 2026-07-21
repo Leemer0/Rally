@@ -20,5 +20,6 @@ xcuserdata/
 
 # Reserved for future backend tooling
 node_modules/
+.pnpm-store/
 coverage/
 *.tsbuildinfo

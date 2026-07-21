@@ -218,6 +218,14 @@ struct VenueMarker: View {
 
                 markerArtwork
                     .frame(width: selected ? 84 : 72, height: selected ? 84 : 72)
+                    .overlay(alignment: .topTrailing) {
+                        if let offer = venue.offer,
+                           offer.discoveryTreatment != .none
+                        {
+                            OfferDiscoveryIcon(offer: offer, size: selected ? 29 : 25)
+                                .offset(x: selected ? 4 : 2, y: selected ? -2 : 0)
+                        }
+                    }
                     .scaleEffect(selected ? 1.08 : 1)
                     .shadow(color: .black.opacity(0.52), radius: selected ? 9 : 6, y: 4)
                     .shadow(color: selected ? theme.accent.opacity(0.82) : .clear, radius: 10)
@@ -247,7 +255,11 @@ struct VenueMarker: View {
         .buttonStyle(.plain)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: selected)
         .accessibilityLabel(venue.name)
-        .accessibilityValue("\(venue.goingCount) going tonight")
+        .accessibilityValue(
+            ["\(venue.goingCount) going tonight", venue.offer?.accessibilitySummary]
+                .compactMap { $0 }
+                .joined(separator: ", ")
+        )
         .accessibilityHint("Shows this venue")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("venue-marker-\(venue.id)")
@@ -333,6 +345,14 @@ struct VenueArtworkIcon: View {
             }
         }
         .frame(width: 52, height: 52)
+        .overlay(alignment: .topTrailing) {
+            if let offer = venue.offer,
+               offer.discoveryTreatment != .none
+            {
+                OfferDiscoveryIcon(offer: offer, size: 20)
+                    .offset(x: 3, y: -2)
+            }
+        }
         .accessibilityHidden(true)
     }
 }
@@ -379,7 +399,7 @@ struct VenuePreviewCard: View {
     }
 
     private var primaryAction: some View {
-        ExpiryAwareView(expiration: store.offerWindow(at: venue.id)?.expiresAt) { now in
+        ExpiryAwareView(expiration: store.offerPresentationEndsAt(venue.id)) { now in
             primaryActionButton(title: primaryActionTitle(now: now), now: now)
                 .buttonStyle(MetalSilverActionButtonStyle())
         }
@@ -425,10 +445,7 @@ struct VenuePreviewCard: View {
             )
 
             if let offer = venue.offer {
-                Label(offer, systemImage: "ticket.fill")
-                    .font(.caption)
-                    .foregroundStyle(theme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                OfferDiscoveryRow(offer: offer, compact: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -483,7 +500,7 @@ private struct ActiveCheckInMapCard: View {
     let venue: Venue
 
     var body: some View {
-        ExpiryAwareView(expiration: store.offerWindow(at: venue.id)?.expiresAt) { now in
+        ExpiryAwareView(expiration: store.offerPresentationEndsAt(venue.id)) { now in
             let offerIsActive = store.isOfferActive(at: venue.id, now: now)
 
             MapGlassSurface(cornerRadius: 18) {
@@ -507,7 +524,10 @@ private struct ActiveCheckInMapCard: View {
 
                         Spacer(minLength: 8)
 
-                        if offerIsActive, let window = store.offerWindow(at: venue.id) {
+                        if offerIsActive,
+                           let window = store.offerPresentationWindow(at: venue.id),
+                           window.hasCountdown
+                        {
                             TimelineView(.periodic(from: .now, by: 1)) { context in
                                 Text(countdown(window.remainingSeconds(at: context.date)))
                                     .font(.subheadline.weight(.bold))
@@ -517,6 +537,10 @@ private struct ActiveCheckInMapCard: View {
                                     .accessibilityLabel("Offer expires in \(spokenCountdown(window.remainingSeconds(at: context.date)))")
                                     .accessibilityIdentifier("map-offer-countdown")
                             }
+                        } else if offerIsActive {
+                            Text("Offer active")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(theme.accent)
                         } else {
                             Text("On map")
                                 .font(.caption.weight(.semibold))
@@ -532,18 +556,29 @@ private struct ActiveCheckInMapCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint(offerIsActive ? "Opens your timed offer" : "Opens the venue")
+                .accessibilityHint(offerIsActive ? "Opens your offer" : "Opens the venue")
                 .accessibilityIdentifier("map-active-checkin")
             }
         }
     }
 
     private func countdown(_ seconds: Int) -> String {
-        String(format: "%02d:%02d", seconds / 60, seconds % 60)
+        if seconds >= 3600 {
+            return String(
+                format: "%02d:%02d:%02d",
+                seconds / 3600,
+                (seconds % 3600) / 60,
+                seconds % 60
+            )
+        }
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
     private func spokenCountdown(_ seconds: Int) -> String {
-        "\(seconds / 60) minutes, \(seconds % 60) seconds"
+        if seconds >= 3600 {
+            return "\(seconds / 3600) hours, \((seconds % 3600) / 60) minutes, \(seconds % 60) seconds"
+        }
+        return "\(seconds / 60) minutes, \(seconds % 60) seconds"
     }
 }
 
@@ -581,20 +616,27 @@ struct VenueListCard: View {
 
     var body: some View {
         Button { router.navigate(to: .venueDetail(venue.id)) } label: {
-            HStack(alignment: .center, spacing: 11) {
-                VenueArtworkIcon(venue: venue)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 11) {
+                    VenueArtworkIcon(venue: venue)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(venue.name).font(.headline).foregroundStyle(theme.primaryText)
-                    Text(venue.neighbourhood)
-                        .font(.caption).foregroundStyle(theme.secondaryText)
-                    Text(venue.hours)
-                        .font(.caption2).foregroundStyle(theme.mutedText)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(venue.name).font(.headline).foregroundStyle(theme.primaryText)
+                        Text(venue.neighbourhood)
+                            .font(.caption).foregroundStyle(theme.secondaryText)
+                        Text(venue.hours)
+                            .font(.caption2).foregroundStyle(theme.mutedText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(theme.mutedText)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(theme.mutedText)
+
+                if let offer = venue.offer {
+                    OfferDiscoveryRow(offer: offer, compact: true)
+                        .padding(.leading, 63)
+                }
             }
             .padding(.vertical, 13)
             .contentShape(Rectangle())
@@ -602,7 +644,9 @@ struct VenueListCard: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(venue.name), \(venue.neighbourhood), \(venue.hours)"
+            [venue.name, venue.neighbourhood, venue.hours, venue.offer?.accessibilitySummary]
+                .compactMap { $0 }
+                .joined(separator: ", ")
         )
     }
 }

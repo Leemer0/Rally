@@ -27,7 +27,7 @@ struct OutlyLiveActivityWidget: Widget {
 
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 1) {
-                        Text("VALID AT")
+                        Text(context.state.offerIsActive && !context.isStale ? "VALID AT" : "CHECKED IN AT")
                             .font(.caption2.weight(.semibold))
                             .tracking(1.15)
                             .foregroundStyle(LiveActivityPalette.secondary)
@@ -54,12 +54,12 @@ struct OutlyLiveActivityWidget: Widget {
             } minimal: {
                 OutlyActivityMark(
                     width: 20,
-                    accessibilityLabel: context.state.offerExpiresAt == nil || context.isStale
-                        ? "Outly check-in"
-                        : "Outly offer active"
+                    accessibilityLabel: context.state.offerIsActive && !context.isStale
+                        ? "Outly offer active"
+                        : "Outly check-in"
                 )
             }
-            .keylineTint(LiveActivityPalette.accent)
+            .keylineTint(context.attributes.isPartnerOffer ? LiveActivityPalette.partner : LiveActivityPalette.accent)
         }
     }
 }
@@ -86,7 +86,19 @@ private struct CheckInLockScreenView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("VALID AT")
+                if let sponsorLine = context.attributes.sponsorLine,
+                   context.state.offerIsActive,
+                   !context.isStale
+                {
+                    Text(sponsorLine)
+                        .font(.caption2.weight(.bold))
+                        .tracking(0.9)
+                        .foregroundStyle(LiveActivityPalette.partner)
+                        .lineLimit(1)
+                        .padding(.bottom, 4)
+                }
+
+                Text(context.state.offerIsActive && !context.isStale ? "VALID AT" : "CHECKED IN AT")
                     .font(.caption2.weight(.semibold))
                     .tracking(1.2)
                     .foregroundStyle(LiveActivityPalette.secondary)
@@ -115,12 +127,12 @@ private struct CheckInLockScreenView: View {
     }
 
     private var offerInterval: ClosedRange<Date>? {
-        guard !context.isStale else { return nil }
+        guard context.state.offerIsActive, !context.isStale else { return nil }
         return context.state.offerInterval
     }
 
     private var detailText: String {
-        guard offerInterval != nil else { return "Venue confirmed" }
+        guard context.state.offerIsActive, !context.isStale else { return "Venue confirmed" }
         return context.attributes.offerTitle ?? "Venue offer active"
     }
 }
@@ -130,6 +142,17 @@ private struct ExpandedActivityDetail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
+            if let sponsorLine = context.attributes.sponsorLine,
+               context.state.offerIsActive,
+               !context.isStale
+            {
+                Text(sponsorLine)
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.8)
+                    .foregroundStyle(LiveActivityPalette.partner)
+                    .lineLimit(1)
+            }
+
             HStack(spacing: 7) {
                 Circle()
                     .fill(LiveActivityPalette.accent)
@@ -154,12 +177,12 @@ private struct ExpandedActivityDetail: View {
     }
 
     private var offerInterval: ClosedRange<Date>? {
-        guard !context.isStale else { return nil }
+        guard context.state.offerIsActive, !context.isStale else { return nil }
         return context.state.offerInterval
     }
 
     private var detailText: String {
-        guard offerInterval != nil else { return "Venue confirmed" }
+        guard context.state.offerIsActive, !context.isStale else { return "Venue confirmed" }
         return context.attributes.offerTitle ?? "Venue offer active"
     }
 }
@@ -171,13 +194,13 @@ private struct ActivityStatusView: View {
 
     var body: some View {
         Group {
-            if let interval = offerInterval, !isStale {
+            if state.offerIsActive, !isStale, let interval = offerInterval {
                 VStack(alignment: .trailing, spacing: compact ? 0 : 3) {
                     Text(
                         timerInterval: interval,
-                        pauseTime: interval.upperBound,
+                        pauseTime: nil,
                         countsDown: true,
-                        showsHours: false
+                        showsHours: interval.duration >= 3600
                     )
                     .font(compact ? .caption.weight(.semibold) : .title2.weight(.medium))
                     .monospacedDigit()
@@ -194,11 +217,19 @@ private struct ActivityStatusView: View {
                 .accessibilityValue(
                     Text(
                         timerInterval: interval,
-                        pauseTime: interval.upperBound,
+                        pauseTime: nil,
                         countsDown: true,
-                        showsHours: false
+                        showsHours: interval.duration >= 3600
                     )
                 )
+            } else if state.offerIsActive, !isStale, compact {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(LiveActivityPalette.accent)
+                    .accessibilityLabel("Offer valid now")
+            } else if state.offerIsActive, !isStale {
+                ValidityIndicator(text: "VALID NOW")
+                    .accessibilityLabel("Offer valid now")
             } else if compact {
                 Image(systemName: "checkmark")
                     .font(.caption.weight(.semibold))
@@ -264,14 +295,33 @@ private struct LiveOfferProgress: View {
 
 private extension CheckInActivityAttributes.ContentState {
     var offerInterval: ClosedRange<Date>? {
-        guard let expiration = offerExpiresAt else { return nil }
+        guard offerIsActive, let expiration = offerExpiresAt else { return nil }
         return checkedInAt ... max(checkedInAt, expiration)
+    }
+}
+
+private extension ClosedRange where Bound == Date {
+    var duration: TimeInterval { upperBound.timeIntervalSince(lowerBound) }
+}
+
+private extension CheckInActivityAttributes {
+    var isPartnerOffer: Bool { offerKind == "partner" }
+
+    var sponsorLine: String? {
+        guard isPartnerOffer,
+              let sponsor = sponsorDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !sponsor.isEmpty
+        else {
+            return nil
+        }
+        return "OUTLY PARTNER · \(sponsor.uppercased())"
     }
 }
 
 private enum LiveActivityPalette {
     static let background = Color(red: 5 / 255, green: 7 / 255, blue: 10 / 255)
     static let accent = Color(red: 199 / 255, green: 255 / 255, blue: 61 / 255)
+    static let partner = Color(red: 127 / 255, green: 168 / 255, blue: 245 / 255)
     static let primary = Color.white
     static let secondary = Color.white.opacity(0.62)
     static let hairline = Color.white.opacity(0.14)

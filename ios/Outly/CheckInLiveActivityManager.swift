@@ -32,23 +32,37 @@ actor CheckInLiveActivityManager {
         venueName: String,
         checkedInAt: Date = Date(),
         offerTitle: String? = nil,
+        offerKind: OfferKind? = nil,
+        sponsorDisplayName: String? = nil,
+        offerHasCountdown: Bool = false,
+        activityStaleAt: Date? = nil,
         offerExpiresAt: Date? = nil
     ) async throws -> CheckInLiveActivityStartResult {
         guard activitiesAreEnabled else { return .activitiesDisabled }
 
-        let validExpiration = offerExpiresAt.flatMap { expiration in
-            expiration > checkedInAt ? expiration : nil
-        }
+        let validExpiration = offerHasCountdown
+            ? offerExpiresAt.flatMap { $0 > checkedInAt ? $0 : nil }
+            : nil
+        let normalizedTitle = normalizedOfferTitle(offerTitle)
+        let hasOffer = normalizedTitle != nil && (!offerHasCountdown || validExpiration != nil)
         let attributes = CheckInActivityAttributes(
             venueID: venueID,
             venueName: venueName,
-            offerTitle: validExpiration == nil ? nil : normalizedOfferTitle(offerTitle)
+            offerTitle: normalizedTitle,
+            offerKind: hasOffer ? offerKind?.rawValue : nil,
+            sponsorDisplayName: hasOffer ? normalizedOfferTitle(sponsorDisplayName) : nil
         )
         let state = CheckInActivityAttributes.ContentState(
             checkedInAt: checkedInAt,
+            offerIsActive: hasOffer,
             offerExpiresAt: validExpiration
         )
-        let content = ActivityContent(state: state, staleDate: validExpiration)
+        let presenceEndsAt = checkedInAt.addingTimeInterval(DemoStore.activePresenceDuration)
+        let validStaleDate = activityStaleAt.flatMap { $0 > checkedInAt ? $0 : nil }
+        let content = ActivityContent(
+            state: state,
+            staleDate: hasOffer ? (validStaleDate ?? validExpiration ?? presenceEndsAt) : nil
+        )
         let currentActivities = Activity<CheckInActivityAttributes>.activities
 
         if let reusableActivity = currentActivities.first(where: { $0.attributes == attributes }) {

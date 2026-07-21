@@ -42,6 +42,8 @@ struct OutlyApp: App {
             )
             let now = Date()
             let activeOffer = TimedOfferWindow(unlockedAt: now)
+            let activePartnerOffer = TimedOfferWindow(unlockedAt: now, duration: 30 * 60)
+            let activeOpenOffer = TimedOfferWindow(unlockedAt: now, duration: nil)
             let expiredOffer = TimedOfferWindow(unlockedAt: now.addingTimeInterval(-TimedOfferWindow.duration - 1))
 
             switch screen {
@@ -56,21 +58,27 @@ struct OutlyApp: App {
             case "onboarding-age": state.onboardingStage = .age
             case "onboarding-complete": state.onboardingStage = .complete
             case "explore": break
+            case "explore-partner":
+                state.selectedVenueID = "lavelle"
             case "explore-offer":
                 state.plan = plan
                 state.checkedInVenueID = "track-field"
                 state.offerWindows["track-field"] = activeOffer
+                state.claimedOffers["track-field"] = VenueCatalog.venue(id: "track-field").offer
             case "venues": initialRouter.selectedTab = .list
             case "profile":
                 initialRouter.selectedTab = .profile
                 state.plan = plan
                 state.checkedInVenueID = "track-field"
                 state.offerWindows["track-field"] = activeOffer
+                state.claimedOffers["track-field"] = VenueCatalog.venue(id: "track-field").offer
             case "venue-detail": initialRouter.explorePath = [.venueDetail("track-field")]
+            case "venue-detail-partner": initialRouter.explorePath = [.venueDetail("lavelle")]
             case "venue-detail-checked-in":
                 state.plan = plan
                 state.checkedInVenueID = "track-field"
                 state.offerWindows["track-field"] = activeOffer
+                state.claimedOffers["track-field"] = VenueCatalog.venue(id: "track-field").offer
                 initialRouter.explorePath = [.venueDetail("track-field")]
             case "rsvp-review": initialRouter.explorePath = [.rsvpReview("track-field")]
             case "rsvp-success":
@@ -81,7 +89,20 @@ struct OutlyApp: App {
             case "offer":
                 state.checkedInVenueID = "track-field"
                 state.offerWindows["track-field"] = activeOffer
+                state.claimedOffers["track-field"] = VenueCatalog.venue(id: "track-field").offer
                 initialRouter.explorePath = [.offer("track-field")]
+            case "offer-partner":
+                state.selectedVenueID = "lavelle"
+                state.checkedInVenueID = "lavelle"
+                state.offerWindows["lavelle"] = activePartnerOffer
+                state.claimedOffers["lavelle"] = VenueCatalog.venue(id: "lavelle").offer
+                initialRouter.explorePath = [.offer("lavelle")]
+            case "offer-open":
+                state.selectedVenueID = "paris-texas"
+                state.checkedInVenueID = "paris-texas"
+                state.offerWindows["paris-texas"] = activeOpenOffer
+                state.claimedOffers["paris-texas"] = VenueCatalog.venue(id: "paris-texas").offer
+                initialRouter.explorePath = [.offer("paris-texas")]
             case "offer-expired":
                 state.checkedInVenueID = "track-field"
                 state.offerWindows["track-field"] = expiredOffer
@@ -104,11 +125,18 @@ struct OutlyApp: App {
 
         if arguments.contains("--tab-venues") { initialRouter.selectedTab = .list }
         if arguments.contains("--tab-profile") { initialRouter.selectedTab = .profile }
+        if arguments.contains("--auto-partner-checkin") {
+            screenshotState = DemoState(onboardingStage: .main)
+            initialRouter.explorePath = [.checkInIntro("lavelle")]
+        }
         if arguments.contains("--route-venue") {
             initialRouter.explorePath = [.venueDetail("track-field")]
         }
         if arguments.contains("--route-checkin") {
             initialRouter.explorePath = [.checkInIntro("track-field")]
+        }
+        if arguments.contains("--route-partner-checkin") {
+            initialRouter.explorePath = [.checkInIntro("lavelle")]
         }
 #endif
 #if DEBUG

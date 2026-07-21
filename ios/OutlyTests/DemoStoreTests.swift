@@ -77,6 +77,106 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(window.remainingFraction(at: unlockedAt.addingTimeInterval(600)), 0, accuracy: 0.0001)
     }
 
+    func testPartnerOfferUsesConfiguredDurationAndExternalDestination() throws {
+        let checkedInAt = Date(timeIntervalSince1970: 1_721_000_500)
+        let store = DemoStore(defaults: defaults, storageKey: "state")
+        let venue = VenueCatalog.venue(id: "lavelle")
+        let offer = try XCTUnwrap(venue.offer)
+
+        store.checkIn(to: venue.id, now: checkedInAt)
+        let window = try XCTUnwrap(store.offerWindow(at: venue.id))
+
+        XCTAssertEqual(offer.kind, .partner)
+        XCTAssertEqual(offer.sponsor?.displayName, "Northline")
+        XCTAssertEqual(offer.redemptionMode, .externalLink)
+        XCTAssertEqual(offer.destinationURL?.scheme, "https")
+        XCTAssertEqual(store.claimedOffer(at: venue.id)?.versionID, offer.versionID)
+        XCTAssertEqual(window.totalDuration, 30 * 60, accuracy: 0.0001)
+        XCTAssertTrue(store.isOfferActive(at: venue.id, now: checkedInAt.addingTimeInterval(1_799)))
+        XCTAssertFalse(store.isOfferActive(at: venue.id, now: checkedInAt.addingTimeInterval(1_800)))
+    }
+
+    func testOpenEndedOfferRemainsActiveOnlyWhileVenuePresenceIsActive() throws {
+        let checkedInAt = Date(timeIntervalSince1970: 1_721_000_500)
+        let store = DemoStore(defaults: defaults, storageKey: "state")
+        let venue = VenueCatalog.venue(id: "paris-texas")
+
+        store.checkIn(to: venue.id, now: checkedInAt)
+        let window = try XCTUnwrap(store.offerWindow(at: venue.id))
+
+        XCTAssertFalse(window.hasCountdown)
+        XCTAssertNil(window.expiresAt)
+        XCTAssertTrue(store.isOfferActive(
+            at: venue.id,
+            now: checkedInAt.addingTimeInterval(DemoStore.activePresenceDuration - 1)
+        ))
+        XCTAssertFalse(store.isOfferActive(
+            at: venue.id,
+            now: checkedInAt.addingTimeInterval(DemoStore.activePresenceDuration)
+        ))
+        XCTAssertEqual(
+            store.offerPresentationEndsAt(venue.id),
+            checkedInAt.addingTimeInterval(DemoStore.activePresenceDuration)
+        )
+    }
+
+    func testLongClaimUsesOneEffectivePresenceEndAcrossSurfaces() {
+        let checkedInAt = Date(timeIntervalSince1970: 1_721_000_500)
+        let venue = VenueCatalog.venue(id: "lavelle")
+        let state = DemoState(
+            onboardingStage: .main,
+            selectedVenueID: venue.id,
+            checkedInVenueID: venue.id,
+            checkedInAt: checkedInAt,
+            offerWindows: [venue.id: TimedOfferWindow(unlockedAt: checkedInAt, duration: 24 * 60 * 60)],
+            claimedOffers: [venue.id: venue.offer!]
+        )
+        let store = DemoStore(previewState: state)
+        let effectiveEnd = checkedInAt.addingTimeInterval(DemoStore.activePresenceDuration)
+
+        XCTAssertEqual(store.offerPresentationEndsAt(venue.id), effectiveEnd)
+        XCTAssertEqual(store.offerPresentationWindow(at: venue.id)?.expiresAt, effectiveEnd)
+        XCTAssertEqual(
+            store.offerPresentationWindow(at: venue.id)?.totalDuration,
+            DemoStore.activePresenceDuration
+        )
+        XCTAssertTrue(store.isOfferActive(at: venue.id, now: effectiveEnd.addingTimeInterval(-1)))
+        XCTAssertFalse(store.isOfferActive(at: venue.id, now: effectiveEnd))
+    }
+
+    func testPartnerOfferContractDecodesSupabaseSnakeCase() throws {
+        let json = #"""
+        {
+          "offer_id": "d1000000-0000-4000-8000-000000000001",
+          "offer_version_id": "e1000000-0000-4000-8000-000000000001",
+          "kind": "partner",
+          "title": "50% off your ride home",
+          "explanation": "For new Northline riders.",
+          "cta_label": "Sign up with Northline",
+          "redemption_mode": "external_link",
+          "destination_url": "https://getoutly.app/partners/northline",
+          "claim_duration_seconds": 1800,
+          "presentation_kind": "partner",
+          "sponsor_display_name": "Northline",
+          "sponsor_logo_storage_path": "partners/northline/logo.svg",
+          "sponsor_disclosure": "Outly partner",
+          "discovery_treatment": "partner_featured",
+          "discovery_badge_label": "Partner offer",
+          "discovery_icon_key": "northline-mark"
+        }
+        """#.data(using: .utf8)!
+
+        let payload = try JSONDecoder().decode(OfferContractPayload.self, from: json)
+        let offer = try payload.venueOffer()
+
+        XCTAssertEqual(offer.kind, .partner)
+        XCTAssertEqual(offer.redemptionMode, .externalLink)
+        XCTAssertEqual(offer.claimDurationSeconds, 1_800)
+        XCTAssertEqual(offer.discoveryTreatment, .partnerFeatured)
+        XCTAssertEqual(offer.sponsor?.displayName, "Northline")
+        XCTAssertEqual(offer.destinationURL?.scheme, "https")
+    }
+
     func testResetReturnsToFirstLaunch() {
         let store = DemoStore(defaults: defaults, storageKey: "state")
         store.go(to: .main)

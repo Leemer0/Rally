@@ -204,7 +204,7 @@ private struct ActivePlanCard: View {
                     Spacer()
                     StatusPill(text: isCheckedIn ? "Checked in" : "Plan", tone: isCheckedIn ? .accent : .neutral)
                 }
-                ExpiryAwareView(expiration: store.offerWindow(at: venue.id)?.expiresAt) { now in
+                ExpiryAwareView(expiration: store.offerPresentationEndsAt(venue.id)) { now in
                     HStack(spacing: 10) {
                         if store.isOfferActive(at: venue.id, now: now) {
                             Button("View offer") { router.navigate(to: .offer(venue.id)) }

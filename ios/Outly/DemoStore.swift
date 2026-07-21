@@ -9,7 +9,7 @@ enum AuthIntent: Equatable {
 @MainActor
 @Observable
 final class DemoStore {
-    static let activePresenceDuration: TimeInterval = 12 * 60 * 60
+    nonisolated static let activePresenceDuration: TimeInterval = 12 * 60 * 60
 
     private(set) var state: DemoState {
         didSet { persist() }
@@ -157,8 +157,13 @@ final class DemoStore {
         state.checkedInVenueID = venueID
         state.checkedInAt = now
         state.offerWindows.removeAll()
-        if venue.offer != nil {
-            state.offerWindows[venueID] = TimedOfferWindow(unlockedAt: now)
+        state.claimedOffers.removeAll()
+        if let offer = venue.offer {
+            state.offerWindows[venueID] = TimedOfferWindow(
+                unlockedAt: now,
+                duration: offer.claimDurationSeconds.map(TimeInterval.init)
+            )
+            state.claimedOffers[venueID] = offer
         }
         HapticManager.shared.success(enabled: state.hapticsEnabled)
     }
@@ -167,8 +172,48 @@ final class DemoStore {
         state.offerWindows[venueID]
     }
 
+    /// Timed offers never advertise more time than the verified venue presence.
+    /// An offer with no countdown stays visually open-ended while its internal
+    /// entitlement still ends with that presence.
+    func offerPresentationWindow(at venueID: String) -> TimedOfferWindow? {
+        guard let window = state.offerWindows[venueID] else { return nil }
+        guard window.hasCountdown,
+              let effectiveEnd = offerPresentationEndsAt(venueID)
+        else {
+            return window
+        }
+
+        return TimedOfferWindow(
+            unlockedAt: window.unlockedAt,
+            duration: max(0, effectiveEnd.timeIntervalSince(window.unlockedAt))
+        )
+    }
+
+    func claimedOffer(at venueID: String) -> VenueOffer? {
+        if let snapshot = state.claimedOffers[venueID] { return snapshot }
+        guard state.offerWindows[venueID] != nil else { return nil }
+        return VenueCatalog.venue(id: venueID).offer
+    }
+
+    /// The local prototype keeps a verified venue presence for twelve hours.
+    /// A claim may expire sooner, but no offer surface should outlive that
+    /// presence. The server will ultimately return this effective end state.
+    func offerPresentationEndsAt(_ venueID: String) -> Date? {
+        guard state.checkedInVenueID == venueID,
+              let checkedInAt = state.checkedInAt,
+              let window = state.offerWindows[venueID]
+        else {
+            return nil
+        }
+
+        let presenceEndsAt = checkedInAt.addingTimeInterval(Self.activePresenceDuration)
+        guard let claimExpiresAt = window.expiresAt else { return presenceEndsAt }
+        return min(claimExpiresAt, presenceEndsAt)
+    }
+
     func isOfferActive(at venueID: String, now: Date = Date()) -> Bool {
-        state.offerWindows[venueID]?.isActive(at: now) == true
+        isCheckedIn(to: venueID, at: now)
+            && state.offerWindows[venueID]?.isActive(at: now) == true
     }
 
     func setHapticsEnabled(_ enabled: Bool) {

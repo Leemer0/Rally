@@ -42,7 +42,25 @@ const paidFeatures = [
   "More active offers and campaign controls",
   "Schedule and audience targeting",
   "Neighbourhood benchmarks where data is sufficient",
-  "Matching with Outly partners for exclusive funded offers",
+  "Partner campaign matching and brand-funded guest offers",
+];
+
+const partnerCampaignSteps = [
+  {
+    number: "01",
+    title: "Matched for fit",
+    copy: "Outly proposes campaigns based on the venue, neighbourhood, audience, and timing.",
+  },
+  {
+    number: "02",
+    title: "Reviewed by your team",
+    copy: "See the offer value, schedule, limits, and staff instructions before you accept.",
+  },
+  {
+    number: "03",
+    title: "Verified at check-in",
+    copy: "Guests unlock the campaign only after Outly confirms they are at your venue.",
+  },
 ];
 
 const questions = [
@@ -194,7 +212,7 @@ export default function VenuesPage() {
               {[
                 "Choose the value, schedule, and claim limit",
                 "Reach people actively deciding where to go",
-                "Give staff a clear ten-minute proof screen",
+                "Give staff a clear live proof screen",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-white/76">
                   <Check className="mt-1 size-4 shrink-0 text-primary" />
@@ -202,6 +220,57 @@ export default function VenuesPage() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 py-24 sm:py-32">
+        <div className="mx-auto grid max-w-[90rem] items-center gap-14 px-5 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:gap-20 lg:px-12">
+          <div className="max-w-xl">
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+              Outly Pro · Partner campaigns
+            </p>
+            <h2 className="mt-6 text-4xl font-medium leading-[1.02] tracking-[-0.045em] sm:text-6xl">
+              Bring brand-funded value to your guests.
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-white/62">
+              Pro venues can be considered for selected campaigns from Outly partners. Campaigns may include ride-home rewards, complimentary items, or other guest benefits—matched to the venue and offered only with your approval.
+            </p>
+            <Link
+              href="#pricing"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "lg" }),
+                "mt-8 h-13 border-white/18 bg-transparent px-6 text-base",
+              )}
+            >
+              See what Pro includes <ArrowRight className="size-4" />
+            </Link>
+          </div>
+
+          <div className="border border-white/14 bg-[#0b0f15] px-6 py-3 sm:px-8">
+            <div className="flex min-h-20 items-center justify-between gap-6 border-b border-white/12">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/42">Campaign access</p>
+                <p className="mt-1 text-lg font-medium">A considered match, not an open marketplace.</p>
+              </div>
+              <span className="shrink-0 text-xs font-medium text-primary">PRO</span>
+            </div>
+
+            <ol>
+              {partnerCampaignSteps.map((step) => (
+                <li key={step.number} className="grid gap-3 border-b border-white/10 py-6 sm:grid-cols-[3rem_1fr] sm:gap-5">
+                  <span className="font-mono text-xs text-primary" aria-hidden="true">{step.number}</span>
+                  <div>
+                    <h3 className="text-lg font-medium tracking-[-0.015em]">{step.title}</h3>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-white/56">{step.copy}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            <p className="py-5 text-xs leading-5 text-white/42">
+              Campaign access depends on availability, venue fit, timing, budget, and partner approval.
+            </p>
           </div>
         </div>
       </section>

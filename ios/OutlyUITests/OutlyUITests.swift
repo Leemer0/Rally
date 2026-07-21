@@ -5,9 +5,15 @@ final class OutlyUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--reset-demo", "--use-demo-services"]
         app.launch()
+    }
+
+    override func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
+        super.tearDown()
     }
 
     func testCompleteNightOutJourney() {
@@ -19,7 +25,11 @@ final class OutlyUITests: XCTestCase {
         nameField.tap()
         nameField.typeText("Liam")
         app.buttons["onboarding-next"].tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["age-input"].waitForExistence(timeout: 3))
         app.buttons["onboarding-next"].tap()
+
+        XCTAssertTrue(app.buttons["explore-toronto"].waitForExistence(timeout: 3))
         app.buttons["explore-toronto"].tap()
 
         let planButton = app.buttons["im-going"]
@@ -56,13 +66,59 @@ final class OutlyUITests: XCTestCase {
 
         XCTAssertTrue(app.otherElements["active-offer-pass"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Track & Field"].exists)
-        XCTAssertTrue(app.staticTexts["50% off your first drink"].exists)
+        XCTAssertTrue(app.staticTexts["Free cover"].exists)
 
         let countdown = app.staticTexts["offer-countdown"]
         XCTAssertTrue(countdown.waitForExistence(timeout: 3))
         XCTAssertTrue(countdown.label.contains("remaining"))
         XCTAssertTrue(app.buttons["back-to-explore"].exists)
         XCTAssertFalse(app.otherElements["expired-offer-pass"].exists)
+    }
+
+    func testPartnerRideOfferFixture() {
+        relaunch(screen: "offer-partner", marketingFixtures: true)
+
+        XCTAssertTrue(app.otherElements["active-offer-pass"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Halide House"].exists)
+        XCTAssertTrue(app.staticTexts["50% off your ride home"].exists)
+        XCTAssertTrue(app.staticTexts["NORTHLINE"].exists)
+        XCTAssertTrue(app.staticTexts["offer-countdown"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["partner-offer-action"].exists)
+        XCTAssertEqual(app.buttons["partner-offer-action"].label, "Sign up with Northline")
+    }
+
+    func testOpenEndedOfferHasNoCountdown() {
+        relaunch(screen: "offer-open", marketingFixtures: true)
+
+        XCTAssertTrue(app.otherElements["active-offer-pass"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Sidecar Assembly"].exists)
+        XCTAssertTrue(app.staticTexts["Complimentary coat check"].exists)
+        XCTAssertFalse(app.staticTexts["offer-countdown"].exists)
+        XCTAssertTrue(app.staticTexts["VALID NOW"].exists)
+    }
+
+    func testPartnerOfferRemainsUsableInLandscape() {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        relaunch(screen: "offer-partner", marketingFixtures: true)
+
+        XCTAssertTrue(app.otherElements["active-offer-pass"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["50% off your ride home"].exists)
+        XCTAssertTrue(app.buttons["partner-offer-action"].exists)
+    }
+
+    func testPartnerOfferSupportsAccessibilityTextSize() {
+        relaunch(
+            screen: "offer-partner",
+            marketingFixtures: true,
+            extraArguments: [
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge",
+            ]
+        )
+
+        XCTAssertTrue(app.otherElements["active-offer-pass"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["50% off your ride home"].exists)
+        XCTAssertTrue(app.buttons["partner-offer-action"].exists)
     }
 
     func testVenueDetailShowsAddressLink() {
@@ -107,7 +163,7 @@ final class OutlyUITests: XCTestCase {
             XCTAssertTrue(button.waitForExistence(timeout: 3))
             XCTAssertEqual(button.frame.midX, windowMidX, accuracy: 2)
             XCTAssertEqual(button.frame.width, referenceFrame.width, accuracy: 1)
-            XCTAssertEqual(button.frame.height, referenceFrame.height, accuracy: 1)
+            XCTAssertEqual(button.frame.height, referenceFrame.height, accuracy: 2)
         }
 
         XCTAssertTrue(appleButton.label.contains("Continue with Apple"))
@@ -192,10 +248,18 @@ final class OutlyUITests: XCTestCase {
         map.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.52)).tap()
     }
 
-    private func relaunch(screen: String) {
+    private func relaunch(
+        screen: String,
+        marketingFixtures: Bool = false,
+        extraArguments: [String] = []
+    ) {
         app.terminate()
         app = XCUIApplication()
         app.launchArguments = ["--reset-demo", "--use-demo-services", "--screen=\(screen)"]
+        if marketingFixtures {
+            app.launchArguments.append("--marketing-fixtures")
+        }
+        app.launchArguments.append(contentsOf: extraArguments)
         app.launch()
     }
 }

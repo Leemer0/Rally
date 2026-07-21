@@ -130,8 +130,8 @@ function OfferForm() {
           <Field id="offer-partner" label="Funding partner">
             <AdminSelect id="offer-partner" name="partner" required>
               <option value="">Choose partner</option>
-              <option>Homebound Rides</option>
-              <option>Northstar Beverage Co.</option>
+              <option>Northline</option>
+              <option>Afterglow Tickets</option>
               <option>Side Street Eats</option>
             </AdminSelect>
           </Field>

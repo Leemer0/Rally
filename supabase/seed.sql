@@ -1,0 +1,2 @@
+-- Deliberately empty for the foundation phase.
+-- Deterministic demo data will be added alongside the venue schema.

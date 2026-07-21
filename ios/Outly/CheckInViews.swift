@@ -274,19 +274,25 @@ struct CheckInIntroView: View {
             // all share this exact timestamp.
             let checkedInAt = Date()
             store.checkIn(to: venueID, now: checkedInAt)
-            let offerExpiresAt = store.offerWindow(at: venueID)?.expiresAt
+            let offerWindow = store.offerWindow(at: venueID)
+            let claimedOffer = store.claimedOffer(at: venueID)
+            let effectiveOfferEnd = store.offerPresentationEndsAt(venueID)
             Task {
                 _ = try? await CheckInLiveActivityManager.shared.start(
                     venueID: venue.id,
                     venueName: venue.name,
                     checkedInAt: checkedInAt,
-                    offerTitle: venue.offer,
-                    offerExpiresAt: offerExpiresAt
+                    offerTitle: claimedOffer?.title,
+                    offerKind: claimedOffer?.kind,
+                    sponsorDisplayName: claimedOffer?.sponsor?.displayName,
+                    offerHasCountdown: offerWindow?.hasCountdown == true,
+                    activityStaleAt: effectiveOfferEnd,
+                    offerExpiresAt: offerWindow?.hasCountdown == true ? effectiveOfferEnd : nil
                 )
             }
             verificationTask = nil
 
-            if venue.offer != nil {
+            if claimedOffer != nil {
                 router.replaceCurrent(with: .offer(venueID))
             } else {
                 router.returnToExplore()

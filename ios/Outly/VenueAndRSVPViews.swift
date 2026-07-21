@@ -20,12 +20,7 @@ struct VenueDetailView: View {
                         .padding(.top, 20)
 
                     if let offer = venue.offer {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Label(offer, systemImage: "ticket.fill")
-                                .font(.headline)
-                                .foregroundStyle(theme.primaryText)
-                                .symbolRenderingMode(.monochrome)
-                        }
+                        OfferDiscoveryRow(offer: offer)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 16)
                         .overlay(alignment: .top) { Divider().overlay(theme.border) }
@@ -37,7 +32,7 @@ struct VenueDetailView: View {
             }
 
             BottomActionBar {
-                ExpiryAwareView(expiration: store.offerWindow(at: venueID)?.expiresAt) { now in
+                ExpiryAwareView(expiration: store.offerPresentationEndsAt(venueID)) { now in
                     if store.isOfferActive(at: venueID, now: now) {
                         Button("View offer") {
                             router.navigate(to: .offer(venue.id))

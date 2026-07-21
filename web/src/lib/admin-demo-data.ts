@@ -119,21 +119,21 @@ export const users = [
 ];
 
 export const partners = [
-  { id: "homebound-rides", name: "Homebound Rides", category: "Transportation", contact: "partnerships@homebound.example", status: "Active", offers: 1, budget: "$4,000" },
-  { id: "northstar-beverage", name: "Northstar Beverage Co.", category: "Beverage", contact: "brand@northstarbeverage.example", status: "Active", offers: 1, budget: "$7,500" },
+  { id: "northline", name: "Northline", category: "Transportation", contact: "partnerships@northline.example", status: "Active", offers: 1, budget: "$4,000" },
+  { id: "afterglow-tickets", name: "Afterglow Tickets", category: "Entertainment", contact: "brand@afterglow.example", status: "Active", offers: 1, budget: "$7,500" },
   { id: "side-street-eats", name: "Side Street Eats", category: "Food delivery", contact: "growth@sidestreeteats.example", status: "Onboarding", offers: 1, budget: "Not set" },
 ];
 
 export const partnerOffers = [
-  { id: "ride-home-credit", partner: "Homebound Rides", name: "$15 ride-home credit", status: "Active" as PartnerOfferStatus, claim: "Verified venue check-in", venues: 3, claims: 86, ends: "Aug 31" },
+  { id: "ride-home-signup", partner: "Northline", name: "50% off your ride home", status: "Active" as PartnerOfferStatus, claim: "Verified check-in + new signup", venues: 3, claims: 86, ends: "Aug 31" },
   { id: "appetizer-check-in", partner: "Side Street Eats", name: "Free appetizer after check-in", status: "Ready" as PartnerOfferStatus, claim: "Verified venue check-in", venues: 0, claims: 0, ends: "Sep 14" },
-  { id: "late-night-credit", partner: "Northstar Beverage Co.", name: "$10 late-night food credit", status: "Draft" as PartnerOfferStatus, claim: "Check in after 11 PM", venues: 0, claims: 0, ends: "Not set" },
+  { id: "event-credit", partner: "Afterglow Tickets", name: "$10 event ticket credit", status: "Draft" as PartnerOfferStatus, claim: "Verified venue check-in", venues: 0, claims: 0, ends: "Not set" },
 ];
 
 export const assignments = [
-  { id: "A-104", offer: "$15 ride-home credit", partner: "Homebound Rides", venue: "Morrow House", status: "Active", window: "Fri-Sat, 9 PM-1 AM", claims: 38 },
-  { id: "A-103", offer: "$15 ride-home credit", partner: "Homebound Rides", venue: "Lantern Club", status: "Active", window: "Fri-Sat, 9 PM-1 AM", claims: 27 },
-  { id: "A-102", offer: "$15 ride-home credit", partner: "Homebound Rides", venue: "Juniper Common", status: "Active", window: "Fri-Sat, 9 PM-1 AM", claims: 21 },
+  { id: "A-104", offer: "50% off your ride home", partner: "Northline", venue: "Morrow House", status: "Active", window: "Fri-Sat, 9 PM-1 AM", claims: 38 },
+  { id: "A-103", offer: "50% off your ride home", partner: "Northline", venue: "Lantern Club", status: "Active", window: "Fri-Sat, 9 PM-1 AM", claims: 27 },
+  { id: "A-102", offer: "50% off your ride home", partner: "Northline", venue: "Juniper Common", status: "Active", window: "Fri-Sat, 9 PM-1 AM", claims: 21 },
   { id: "A-101", offer: "Free appetizer after check-in", partner: "Side Street Eats", venue: "Northline Social", status: "Awaiting venue", window: "Thu, 8 PM-10 PM", claims: 0 },
 ];
 

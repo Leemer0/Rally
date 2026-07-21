@@ -90,6 +90,14 @@ private struct VenueSearchSheet: View {
                             Text(venue.hours)
                                 .font(.caption)
                                 .foregroundStyle(theme.mutedText)
+
+                            if let offer = venue.offer {
+                                Text(offer.accessibilitySummary)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(offer.kind == .partner ? theme.partnerAccent : theme.accent)
+                                    .lineLimit(2)
+                                    .padding(.top, 2)
+                            }
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
