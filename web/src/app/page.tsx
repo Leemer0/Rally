@@ -8,7 +8,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  description: "Done with dating apps? See where Toronto is going tonight, choose a bar, and meet people in real life.",
+  title: { absolute: "Outly — Toronto Nightlife App" },
+  description:
+    "Outly is a free Toronto nightlife app for people tired of dating apps. See where people are going, choose a bar, and meet in real life.",
+  alternates: { canonical: "/" },
 };
 
 const decisions = [
@@ -26,9 +29,91 @@ const decisions = [
   },
 ];
 
+const questions = [
+  {
+    question: "What is the Outly app?",
+    answer:
+      "Outly is a Toronto nightlife app for people who would rather meet in person than keep swiping. It shows participating bars, where people are planning to go, and offers that unlock after a verified check-in.",
+  },
+  {
+    question: "Is Outly a dating app?",
+    answer:
+      "No. Outly has no dating profiles, matches, direct messages, or swiping. You choose a venue and meet people there in real life.",
+  },
+  {
+    question: "Is Outly free?",
+    answer:
+      "Yes. The Outly iPhone app will be free to download and use. Participating venues may also provide exclusive offers when you check in.",
+  },
+  {
+    question: "Where is Outly available?",
+    answer:
+      "Outly is launching first in Toronto, beginning with neighbourhoods including King West, Ossington, College, and Chinatown.",
+  },
+];
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://www.getoutly.app/#organization",
+      name: "Outly",
+      legalName: "Outly Labs Inc.",
+      url: "https://www.getoutly.app/",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://www.getoutly.app/brand/outly-mark.png",
+        width: 512,
+        height: 512,
+      },
+      email: "hello@getoutly.app",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Toronto",
+        addressRegion: "ON",
+        addressCountry: "CA",
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.getoutly.app/#website",
+      name: "Outly",
+      alternateName: "Outly App",
+      url: "https://www.getoutly.app/",
+      inLanguage: "en-CA",
+      publisher: { "@id": "https://www.getoutly.app/#organization" },
+    },
+    {
+      "@type": "MobileApplication",
+      "@id": "https://www.getoutly.app/#app",
+      name: "Outly",
+      url: "https://www.getoutly.app/",
+      operatingSystem: "iOS",
+      applicationCategory: "LifestyleApplication",
+      description:
+        "A free Toronto nightlife app that helps people see where others are going, choose a bar, and meet in real life.",
+      areaServed: {
+        "@type": "City",
+        name: "Toronto",
+      },
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "CAD",
+      },
+      publisher: { "@id": "https://www.getoutly.app/#organization" },
+    },
+  ],
+};
+
 export default function Home() {
   return (
     <main id="main-content" className="overflow-x-clip bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <section className="relative border-b border-white/10">
         <SiteHeader />
         <div className="mx-auto grid min-h-[50rem] max-w-[96rem] lg:min-h-[44rem] lg:grid-cols-[1.18fr_.82fr] 2xl:min-h-[50rem]">
@@ -134,6 +219,27 @@ export default function Home() {
           <p className="mt-14 max-w-xl border-l-2 border-primary pl-5 text-sm leading-6 text-white/66">
             Location is checked only when you tap Check in. Venues and other users never see where you are.
           </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="about-outly" className="border-b border-white/10 py-24 sm:py-32">
+        <div className="mx-auto grid max-w-[90rem] gap-14 px-5 sm:px-8 lg:grid-cols-[.62fr_1.38fr] lg:px-12">
+          <div className="max-w-lg">
+            <p className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
+              About Outly
+            </p>
+            <h2 id="about-outly" className="mt-6 text-4xl font-medium leading-[1.02] tracking-[-0.045em] sm:text-5xl">
+              Nightlife, explained simply.
+            </h2>
+          </div>
+          <div>
+            {questions.map((item) => (
+              <article key={item.question} className="grid gap-3 border-t border-white/16 py-7 sm:grid-cols-[15rem_1fr] sm:gap-8">
+                <h3 className="text-lg font-medium tracking-[-0.02em]">{item.question}</h3>
+                <p className="max-w-2xl leading-7 text-white/62">{item.answer}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -4,20 +4,32 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://getoutly.app"),
+  metadataBase: new URL("https://www.getoutly.app"),
   applicationName: "Outly",
   title: {
-    default: "Outly",
+    default: "Outly — Toronto Nightlife App",
     template: "%s | Outly",
   },
   description:
-    "See where Toronto is going tonight. Pick a bar. Meet in real life.",
-  alternates: {
-    canonical: "/",
+    "Outly is a free Toronto nightlife app for people tired of dating apps. See where people are going, choose a bar, and meet in real life.",
+  category: "nightlife",
+  creator: "Outly Labs Inc.",
+  publisher: "Outly Labs Inc.",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
   openGraph: {
-    title: "Outly — Meet in real life.",
-    description: "See where Toronto is going tonight. Pick a bar. Meet in real life.",
+    title: "Outly — Toronto Nightlife, Without the Dating App",
+    description:
+      "See where people are going tonight, choose a Toronto bar, and meet in real life.",
     url: "/",
     siteName: "Outly",
     locale: "en_CA",
@@ -25,8 +37,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Outly — Meet in real life.",
-    description: "See where Toronto is going tonight. Pick a bar. Meet in real life.",
+    title: "Outly — Toronto Nightlife, Without the Dating App",
+    description:
+      "See where people are going tonight, choose a Toronto bar, and meet in real life.",
   },
 };
 

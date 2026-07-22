@@ -11,6 +11,13 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "For venues",
   description: "Reach people choosing where to go tonight, create check-in offers for the hours you want to fill, and measure verified visits with Outly.",
+  alternates: { canonical: "/venues" },
+  openGraph: {
+    title: "Outly for Venues — Turn Intent Into Verified Visits",
+    description:
+      "Reach people choosing where to go tonight, run check-in offers, and measure verified visits.",
+    url: "/venues",
+  },
 };
 
 const outcomes = [

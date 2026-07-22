@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BrandMark } from "@/components/brand/mark";
+
+export const metadata: Metadata = {
+  title: "Privacy policy",
+  robots: { index: false, follow: true },
+};
 
 export default function PrivacyPage() {
   return (

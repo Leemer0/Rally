@@ -5,7 +5,10 @@ import { DashboardMobileMenu, DashboardSidebar } from "@/components/dashboard/da
 import { Badge } from "@/components/ui/badge";
 import { requireVenueSession } from "@/lib/auth/venue";
 
-export const metadata: Metadata = { title: "Venue dashboard" };
+export const metadata: Metadata = {
+  title: "Venue dashboard",
+  robots: { index: false, follow: false },
+};
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
