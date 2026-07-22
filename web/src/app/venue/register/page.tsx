@@ -106,7 +106,27 @@ export default async function VenueRegisterPage({
         <Field id="password" label="Password" placeholder="At least 10 characters" type="password" autoComplete="new-password" minLength={10} />
         <label className="flex gap-3 text-xs leading-5 text-white/46">
           <input name="authority" type="checkbox" required className="mt-1 size-4 accent-[#c7ff3d]" />
-          <span>I confirm I’m authorized to manage this venue and agree to the venue terms and privacy policy.</span>
+          <span>
+            I confirm I’m authorized to manage this venue and agree to the{" "}
+            <Link
+              href="/terms"
+              target="_blank"
+              rel="noreferrer"
+              className="text-white underline decoration-white/30 underline-offset-4"
+            >
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="text-white underline decoration-white/30 underline-offset-4"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </span>
         </label>
         <Button type="submit" size="lg" className="h-12 w-full">Submit for review <ArrowRight className="size-4" /></Button>
       </form>

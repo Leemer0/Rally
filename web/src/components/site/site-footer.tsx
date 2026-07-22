@@ -13,11 +13,12 @@ export function SiteFooter({ audience = "consumer" }: { audience?: "consumer" | 
               : "See where people are heading tonight. Pick a bar. Meet in real life."}
           </p>
         </div>
-        <nav className="grid grid-cols-2 gap-x-10 gap-y-3 text-sm text-white/60 sm:grid-cols-4" aria-label="Footer">
+        <nav className="grid grid-cols-2 gap-x-10 gap-y-3 text-sm text-white/60 sm:grid-cols-3" aria-label="Footer">
           <Link href="/venues" className="hover:text-white">For venues</Link>
           <Link href="/venue/login" className="hover:text-white">Venue sign in</Link>
           <a href="mailto:hello@getoutly.app" className="hover:text-white">Contact</a>
           <Link href="/privacy" className="hover:text-white">Privacy</Link>
+          <Link href="/terms" className="hover:text-white">Terms</Link>
         </nav>
         <div className="border-t border-white/8 pt-5 text-xs text-white/35 md:col-span-2 md:flex md:items-center md:justify-between">
           <p>© {new Date().getFullYear()} Outly Labs Inc. Toronto, Canada.</p>
