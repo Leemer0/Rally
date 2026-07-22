@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireFounderSession } from "@/lib/auth/founder";
+import { getFounderDashboardSnapshot } from "@/lib/data/founder-dashboard";
+import { sendVenueApprovedEmail } from "@/lib/email/resend";
 import { createClient } from "@/lib/supabase/server";
 
 function value(formData: FormData, key: string) {
@@ -113,6 +115,23 @@ export async function reviewFounderVenue(formData: FormData) {
     });
   } catch {
     redirect(`/admin/venues/${encodeURIComponent(venueId)}?error=review_failed`);
+  }
+
+  if (decision === "approved") {
+    try {
+      const snapshot = await getFounderDashboardSnapshot();
+      const venue = snapshot.venues.find((item) => item.id === venueId);
+      if (venue?.businessEmail) {
+        await sendVenueApprovedEmail({
+          venueId,
+          venueName: venue.name,
+          email: venue.businessEmail,
+        });
+      }
+    } catch {
+      // Approval remains the source of truth. A transient email failure must
+      // never roll back or misreport the founder's completed review action.
+    }
   }
 
   revalidatePath("/admin");

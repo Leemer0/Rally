@@ -23,7 +23,8 @@ manually creating production tables in Studio.
   approved public partner artwork, campaign capacity, and per-user limits
 - privacy-thresholded, coarsened crowd demographics and aggregate venue
   analytics
-- Free/Pro entitlements with founder-managed MVP trials and subscription state
+- Free/Pro entitlements with Stripe Checkout, signed webhook synchronization,
+  configurable recurring Prices, and self-service Customer Portal management
 - resumable account deletion, including durable completion when Auth is removed
 - authenticated Edge Functions for every consumer, venue, and founder action
 - an OpenAPI contract in `../contracts/openapi.yaml`
@@ -71,8 +72,9 @@ arbitrary countdowns, privacy rules, deletion, and primary API workflows.
    - `outly://auth-callback`
    - the localhost callback while developing
 
-4. Configure Apple, Google, and Facebook providers with their production app
-   credentials. Configure production SMTP before requiring email confirmation.
+4. Configure the chosen OAuth providers with their production app credentials.
+   Configure Resend custom SMTP and publish the branded confirmation/recovery
+   templates in `templates/` before requiring email confirmation.
 
 5. Add one founder after that person has an Auth user. Run this once in the SQL
    editor with the real Auth UUID:
@@ -97,8 +99,9 @@ operations.
 
 ## Not yet production-complete
 
-- Stripe Checkout and signed webhooks are not connected. Free/Pro status is
-  founder-managed for the MVP.
+- Stripe Checkout and webhook code is implemented, but the live Stripe Product,
+  recurring Price, Customer Portal, webhook destination, branding, and Vercel
+  secrets must be configured and exercised in a Stripe sandbox before live mode.
 - Core Location evidence is mathematically verified but still originates on the
   client. Before attaching material cash value to partner rewards, add App
   Attest, one-time challenges, fraud monitoring, and conservative claim caps.
