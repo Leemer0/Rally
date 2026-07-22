@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Both values are public client configuration. Never put a secret/service-role key here. -->
+	<key>SupabaseURL</key>
+	<string>https://umldrdrqzusblpwrsrcr.supabase.co</string>
+	<key>SupabasePublishableKey</key>
+	<string>sb_publishable_ld1aowYUQedwDyBzjHxs2Q_by-b_-Ws</string>
+</dict>
+</plist>

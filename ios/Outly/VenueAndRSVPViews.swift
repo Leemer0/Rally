@@ -6,7 +6,7 @@ struct VenueDetailView: View {
     @Environment(OutlyTheme.self) private var theme
     let venueID: String
 
-    private var venue: Venue { VenueCatalog.venue(id: venueID) }
+    private var venue: Venue { store.venue(id: venueID) }
     private var isActivePlan: Bool { store.plan?.venueID == venueID }
     private var isCheckedIn: Bool { store.isCheckedIn(to: venueID) }
 
@@ -14,6 +14,11 @@ struct VenueDetailView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    if let heroURL = venue.heroURL {
+                        VenueHeroMedia(url: heroURL, venueName: venue.name)
+                            .padding(.bottom, 20)
+                    }
+
                     VenueDetailHeader(venue: venue, isCheckedIn: isCheckedIn)
 
                     CrowdInsightsSurface(venue: venue, goingCount: attendanceCount)
@@ -83,13 +88,53 @@ struct VenueDetailView: View {
     }
 }
 
+private struct VenueHeroMedia: View {
+    @Environment(OutlyTheme.self) private var theme
+    let url: URL
+    let venueName: String
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if case let .success(image) = phase {
+                image
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    LinearGradient(
+                        colors: [theme.elevatedSurface, theme.sunkenSurface],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    WingedOMarkView(compact: true)
+                        .opacity(0.55)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 178)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous)
+                .stroke(theme.border, lineWidth: 0.75)
+        }
+        .accessibilityLabel("Photo of \(venueName)")
+    }
+}
+
 struct RSVPReviewView: View {
     @Environment(DemoStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Environment(OutlyTheme.self) private var theme
+    @Environment(\.appServices) private var services
     let venueID: String
 
-    private var venue: Venue { VenueCatalog.venue(id: venueID) }
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+    @State private var idempotencyKey = UUID()
+
+    private var venue: Venue { store.venue(id: venueID) }
 
     var body: some View {
         FlowScreen(title: "Review your plan") {
@@ -108,20 +153,32 @@ struct RSVPReviewView: View {
 
                 if let plan = store.plan, plan.venueID != venueID {
                     Label(
-                        "This replaces your plan at \(VenueCatalog.venue(id: plan.venueID).name).",
+                        "This replaces your plan at \(store.venue(id: plan.venueID).name).",
                         systemImage: "exclamationmark.triangle.fill"
                     )
                         .font(.subheadline)
                         .foregroundStyle(theme.warning)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(theme.error)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         } footer: {
-            Button("Confirm plan") {
-                store.confirmPlan(for: venueID)
-                router.navigate(to: .rsvpSuccess(venueID))
+            Button {
+                Task { await confirmPlan() }
+            } label: {
+                HStack {
+                    Text("Confirm plan")
+                    if isSubmitting { ProgressView().tint(.black) }
+                }
             }
             .buttonStyle(MetalSilverActionButtonStyle())
+            .disabled(isSubmitting)
             .accessibilityIdentifier("confirm-plan")
         }
     }
@@ -132,13 +189,31 @@ struct RSVPReviewView: View {
         formatter.dateFormat = "MMMM d"
         return formatter.string(from: Date())
     }
+
+    @MainActor
+    private func confirmPlan() async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+
+        do {
+            let plan = try await services.setNightPlan(venueID, idempotencyKey)
+            store.applyServerPlan(plan)
+            router.navigate(to: .rsvpSuccess(venueID))
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn’t save your plan. Try again."
+        }
+    }
 }
 
 struct RSVPSuccessView: View {
+    @Environment(DemoStore.self) private var store
     @Environment(AppRouter.self) private var router
     let venueID: String
 
-    private var venue: Venue { VenueCatalog.venue(id: venueID) }
+    private var venue: Venue { store.venue(id: venueID) }
 
     var body: some View {
         VStack(spacing: 0) {

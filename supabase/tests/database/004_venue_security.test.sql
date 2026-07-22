@@ -1,5 +1,8 @@
 begin;
 
+set local role postgres;
+set local search_path = public, extensions, pgtap;
+
 create extension if not exists pgtap with schema extensions;
 
 select plan(29);
@@ -327,7 +330,7 @@ select throws_ok(
   'consumer cannot read legal or business registration data'
 );
 
-reset role;
+set local role postgres;
 select set_config(
   'request.jwt.claims',
   '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","role":"authenticated"}',
@@ -367,7 +370,7 @@ select throws_ok(
   'venue owner cannot activate their own account directly'
 );
 
-reset role;
+set local role postgres;
 
 select throws_ok(
   $$insert into public.venues (slug, display_name, geofence_radius_metres) values ('unsafe-radius', 'Unsafe Radius', 201)$$,

@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { signOutVenue } from "@/app/venue/actions";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -16,7 +17,12 @@ const navItems = [
   { href: "/dashboard/billing", label: "Plan & billing", icon: CreditCard },
 ];
 
-function NavContent() {
+export type DashboardNavContext = {
+  venueName: string;
+  registrationStatus: string;
+};
+
+function NavContent({ venue }: { venue: DashboardNavContext }) {
   const pathname = usePathname();
   return (
     <>
@@ -39,27 +45,29 @@ function NavContent() {
       </nav>
       <div className="border-t border-sidebar-border p-3">
         <Link href="/dashboard/venue" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm text-white/50 hover:bg-white/[0.045] hover:text-white"><Settings className="size-4 text-white/34" />Settings</Link>
-        <Link href="/venue/login" className="flex min-h-10 items-center gap-3 rounded-md px-3 text-sm text-white/50 hover:bg-white/[0.045] hover:text-white"><LogOut className="size-4 text-white/34" />Sign out</Link>
+        <form action={signOutVenue}>
+          <button type="submit" className="flex min-h-10 w-full items-center gap-3 rounded-md px-3 text-sm text-white/50 hover:bg-white/[0.045] hover:text-white"><LogOut className="size-4 text-white/34" />Sign out</button>
+        </form>
       </div>
       <div className="border-t border-sidebar-border p-4">
-        <p className="text-sm font-medium">Demo Venue</p>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-white/34"><span className="size-1.5 rounded-full bg-primary" />Approved · Free plan</div>
+        <p className="truncate text-sm font-medium">{venue.venueName}</p>
+        <div className="mt-1 flex items-center gap-2 text-[11px] text-white/34"><span className="size-1.5 rounded-full bg-primary" />{venue.registrationStatus.replaceAll("_", " ")}</div>
       </div>
     </>
   );
 }
 
-export function DashboardSidebar() {
-  return <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar lg:flex"><NavContent /></aside>;
+export function DashboardSidebar({ venue }: { venue: DashboardNavContext }) {
+  return <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar lg:flex"><NavContent venue={venue} /></aside>;
 }
 
-export function DashboardMobileMenu() {
+export function DashboardMobileMenu({ venue }: { venue: DashboardNavContext }) {
   return (
     <Sheet>
       <SheetTrigger render={<Button variant="outline" size="icon-lg" className="border-white/12 bg-transparent lg:hidden" aria-label="Open dashboard menu" />}><Menu className="size-5" /></SheetTrigger>
       <SheetContent side="left" className="w-[18rem] border-white/10 bg-sidebar p-0" showCloseButton={false}>
         <SheetHeader className="sr-only"><SheetTitle>Dashboard navigation</SheetTitle><SheetDescription>Choose a dashboard page</SheetDescription></SheetHeader>
-        <NavContent />
+        <NavContent venue={venue} />
       </SheetContent>
     </Sheet>
   );

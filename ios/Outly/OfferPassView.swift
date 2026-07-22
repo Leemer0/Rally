@@ -5,7 +5,7 @@ struct OfferView: View {
     @Environment(AppRouter.self) private var router
     let venueID: String
 
-    private var venue: Venue { VenueCatalog.venue(id: venueID) }
+    private var venue: Venue { store.venue(id: venueID) }
 
     var body: some View {
         let window = store.offerPresentationWindow(at: venueID)

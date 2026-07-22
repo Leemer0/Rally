@@ -1,5 +1,8 @@
 begin;
 
+set local role postgres;
+set local search_path = public, extensions, pgtap;
+
 create extension if not exists pgtap with schema extensions;
 
 select plan(10);
@@ -117,7 +120,7 @@ select throws_ok(
   'consumer cannot read protected eligibility'
 );
 
-reset role;
+set local role postgres;
 
 select throws_ok(
   $$

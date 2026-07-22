@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AlertTriangle, ArrowLeft, Info } from "lucide-react";
+import { AlertCircle, ArrowLeft, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -41,18 +41,6 @@ export function AdminPageHeader({
   );
 }
 
-export function DemoNotice({ message }: { message?: string }) {
-  return (
-    <div className="flex items-start gap-2.5 rounded-md border border-primary/18 bg-primary/[0.045] px-3.5 py-3 text-xs leading-5 text-white/58">
-      <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
-      <p>
-        {message ??
-          "Fictional demo data. Actions in this prototype do not save or contact anyone."}
-      </p>
-    </div>
-  );
-}
-
 export function ConfirmationNotice({ children }: { children: ReactNode }) {
   return (
     <div
@@ -65,27 +53,38 @@ export function ConfirmationNotice({ children }: { children: ReactNode }) {
   );
 }
 
-export function PersistenceWarning() {
+export function ErrorNotice({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-md border border-amber-300/18 bg-amber-300/[0.045] px-3.5 py-3 text-xs leading-5 text-white/56">
-      <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-200/80" />
-      <p>
-        This is a front-end prototype. Submitting returns to the list view but does
-        not write to Supabase.
-      </p>
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 rounded-md border border-destructive/24 bg-destructive/[0.06] px-3.5 py-3 text-sm text-red-100/78"
+    >
+      <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-200/80" />
+      <p>{children}</p>
     </div>
   );
 }
 
 export function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
   const className =
-    status === "Approved" || status === "Active" || status === "Ready"
+    normalized === "approved" ||
+    normalized === "active" ||
+    normalized === "ready" ||
+    normalized === "published" ||
+    normalized === "complete"
       ? "border-primary/24 bg-primary/[0.045] text-primary"
-      : status === "Pending" ||
-          status === "Onboarding" ||
-          status === "Awaiting venue"
+      : normalized === "pending" ||
+          normalized === "pending review" ||
+          normalized === "changes requested" ||
+          normalized === "onboarding" ||
+          normalized === "awaiting venue"
         ? "border-amber-300/20 bg-amber-300/[0.04] text-amber-100/80"
-        : status === "Paused" || status === "Deletion requested"
+        : normalized === "paused" ||
+            normalized === "suspended" ||
+            normalized === "rejected" ||
+            normalized === "deletion pending" ||
+            normalized === "deletion requested"
           ? "border-destructive/24 bg-destructive/[0.06] text-red-200/80"
           : "border-white/12 bg-white/[0.025] text-white/50";
 

@@ -44,15 +44,47 @@ struct MainAppView: View {
     private func routeDestination(_ route: AppRoute) -> some View {
         Group {
             switch route {
-            case let .venueDetail(id): VenueDetailView(venueID: id)
-            case let .rsvpReview(id): RSVPReviewView(venueID: id)
-            case let .rsvpSuccess(id): RSVPSuccessView(venueID: id)
-            case let .checkInIntro(id): CheckInIntroView(venueID: id)
-            case let .offer(id): OfferView(venueID: id)
+            case let .venueDetail(id):
+                if store.hasVenue(id: id) { VenueDetailView(venueID: id) }
+                else { UnavailableVenueRouteView(venueID: id) }
+            case let .rsvpReview(id):
+                if store.hasVenue(id: id) { RSVPReviewView(venueID: id) }
+                else { UnavailableVenueRouteView(venueID: id) }
+            case let .rsvpSuccess(id):
+                if store.hasVenue(id: id) { RSVPSuccessView(venueID: id) }
+                else { UnavailableVenueRouteView(venueID: id) }
+            case let .checkInIntro(id):
+                if store.hasVenue(id: id) { CheckInIntroView(venueID: id) }
+                else { UnavailableVenueRouteView(venueID: id) }
+            case let .offer(id):
+                if store.hasVenue(id: id) { OfferView(venueID: id) }
+                else { UnavailableVenueRouteView(venueID: id) }
             }
         }
         .environment(theme)
         .toolbar(.hidden, for: .tabBar)
+    }
+}
+
+private struct UnavailableVenueRouteView: View {
+    @Environment(AppRouter.self) private var router
+    @Environment(OutlyTheme.self) private var theme
+    let venueID: String
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Venue unavailable", systemImage: "mappin.slash")
+        } description: {
+            Text("This venue is no longer available tonight.")
+        } actions: {
+            Button("Back to Explore") { router.returnToExplore() }
+                .buttonStyle(.borderedProminent)
+        }
+        .foregroundStyle(theme.primaryText)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.background)
+        .accessibilityIdentifier("venue-unavailable")
+        .accessibilityValue(venueID)
     }
 }
 
@@ -64,8 +96,8 @@ private struct VenueSearchSheet: View {
     @State private var query = ""
 
     private var results: [Venue] {
-        guard !query.isEmpty else { return VenueCatalog.venues }
-        return VenueCatalog.venues.filter {
+        guard !query.isEmpty else { return store.venues }
+        return store.venues.filter {
             $0.name.localizedCaseInsensitiveContains(query)
                 || $0.neighbourhood.localizedCaseInsensitiveContains(query)
         }
@@ -134,11 +166,12 @@ private struct VenueSearchSheet: View {
 
 private struct VenueFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(DemoStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Environment(OutlyTheme.self) private var theme
 
     private var resultCount: Int {
-        VenueCatalog.venues.filter(router.filters.includes).count
+        store.venues.filter(router.filters.includes).count
     }
 
     var body: some View {
@@ -218,6 +251,12 @@ private struct SettingsSheet: View {
     @Environment(DemoStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Environment(OutlyTheme.self) private var theme
+    @Environment(\.appServices) private var services
+    @State private var isSigningOut = false
+    @State private var isDeletingAccount = false
+    @State private var showsDeleteConfirmation = false
+    @State private var accountError: String?
+    @State private var deletionIdempotencyKey = UUID()
 
     var body: some View {
         NavigationStack {
@@ -235,6 +274,32 @@ private struct SettingsSheet: View {
                         router.presentedSheet = .info(.about)
                     }
                 }
+
+                Section("Account") {
+                    Button {
+                        Task { await signOut() }
+                    } label: {
+                        HStack {
+                            Text("Log out")
+                            Spacer()
+                            if isSigningOut { ProgressView() }
+                        }
+                    }
+                    .disabled(isSigningOut || isDeletingAccount)
+
+                    Button("Delete account", role: .destructive) {
+                        showsDeleteConfirmation = true
+                    }
+                    .disabled(isSigningOut || isDeletingAccount)
+                }
+
+                if let accountError {
+                    Section {
+                        Text(accountError)
+                            .font(.footnote)
+                            .foregroundStyle(theme.error)
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(theme.background)
@@ -244,7 +309,62 @@ private struct SettingsSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .confirmationDialog(
+            "Delete your Outly account?",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete account", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes your account and ends your current plan and offer access.")
+        }
+    }
+
+    @MainActor
+    private func signOut() async {
+        guard !isSigningOut else { return }
+        isSigningOut = true
+        accountError = nil
+        defer { isSigningOut = false }
+
+        do {
+            try await services.signOut()
+            await CheckInLiveActivityManager.shared.endAll()
+            finishAccountExit()
+        } catch {
+            accountError = Self.message(for: error, fallback: "Couldn’t log out. Try again.")
+        }
+    }
+
+    @MainActor
+    private func deleteAccount() async {
+        guard !isDeletingAccount else { return }
+        isDeletingAccount = true
+        accountError = nil
+        defer { isDeletingAccount = false }
+
+        do {
+            try await services.deleteConsumerAccount(deletionIdempotencyKey)
+            try? await services.signOut()
+            await CheckInLiveActivityManager.shared.endAll()
+            finishAccountExit()
+        } catch {
+            accountError = Self.message(for: error, fallback: "Couldn’t delete your account. Try again.")
+        }
+    }
+
+    private func finishAccountExit() {
+        store.signOutLocally()
+        dismiss()
+        router.reset()
+    }
+
+    private static func message(for error: Error, fallback: String) -> String {
+        (error as? LocalizedError)?.errorDescription ?? fallback
     }
 }
 
@@ -268,7 +388,7 @@ private struct InfoSheet: View {
                         .lineSpacing(5)
 
                     if page == .privacy {
-                        Label("On-device only", systemImage: "lock.shield")
+                        Label("Not shared with venues", systemImage: "lock.shield")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(theme.primaryText)
                             .padding(.top, 8)
@@ -294,9 +414,9 @@ private struct InfoSheet: View {
     private var copy: String {
         switch page {
         case .privacy:
-            "Your location is checked only when you choose Check in. It is never stored."
+            "Your precise location is sent securely only when you choose Check in. Outly uses it to verify that you’re at the venue, keeps the verification result, and does not share your coordinates with venues or other users."
         case .support:
-            "Choose a venue, then check in when you arrive. Any offer you unlock stays valid for 10 minutes."
+            "Choose a venue, then check in when you arrive. If there’s an offer, its screen shows exactly how long it remains available."
         case .about:
             "A map-first way to decide where to go tonight."
         }

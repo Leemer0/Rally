@@ -1,22 +1,33 @@
 # Outly
 
-Outly is an iPhone nightlife discovery app for deciding where to go based on
-aggregated social momentum. The product currently consists of the native SwiftUI
-app only; the venue-facing web application will be designed separately later.
+Outly is a map-first iPhone app for seeing where people are going tonight,
+choosing one venue, checking in on arrival, and unlocking venue or partner
+offers. This repository contains the consumer iOS app, the public website,
+venue and founder dashboards, and the Supabase backend they share.
 
-## Requirements
+## Repository structure
+
+- `ios/Outly/` — SwiftUI consumer app
+- `ios/OutlyLiveActivity/` — active-offer Live Activity extension
+- `ios/Shared/` — models shared by the app and extension
+- `ios/OutlyTests/` and `ios/OutlyUITests/` — automated iOS tests
+- `web/` — Next.js public site, venue portal, and founder dashboard
+- `supabase/` — migrations, pgTAP tests, and Edge Functions
+- `contracts/openapi.yaml` — shared backend contract
+- `design-system/` and `design-concepts/` — product design guidance
+
+## iOS app
+
+Requirements:
 
 - iOS 17 or later
 - Xcode with the shared `Outly` scheme
-- A public Mapbox access token beginning with `pk.`
+- a public Mapbox access token beginning with `pk.` in `~/.mapbox`
+- the Supabase project URL and public publishable key in
+  `ios/Outly/SupabaseConfig.plist`
 
-Save the Mapbox token in `~/.mapbox`. The build copies it into the app bundle
-without committing it to the repository.
-
-## Run the app
-
-Open `ios/Outly.xcodeproj` in Xcode, select the `Outly` scheme, and run it on an
-iPhone simulator. To build and test from the command line:
+Open `ios/Outly.xcodeproj`, select the `Outly` scheme, and run it on an iPhone
+simulator. To run the automated suite:
 
 ```bash
 xcodebuild -project ios/Outly.xcodeproj \
@@ -25,35 +36,21 @@ xcodebuild -project ios/Outly.xcodeproj \
   test
 ```
 
-To test the live Track & Field check-in in Simulator, choose **Features →
-Location → Custom Location** and enter latitude `43.6549`, longitude `-79.4238`.
+The app uses live Supabase Auth and Edge Functions in normal builds. Explicit
+demo, preview, screenshot, and UI-test launch arguments remain available for
+repeatable design review and testing.
 
-## Current implementation
+## Website and dashboards
 
-The app uses SwiftUI, Mapbox for venue discovery, Core Location for one-time
-venue-radius verification, and a Live Activity for active offers. Authentication,
-venue data, plans, check-ins, and offer persistence currently use deterministic
-local adapters so the complete mobile journey works without a backend.
+See `web/README.md` for local environment variables and development commands.
+The marketing pages can render without Supabase configuration; authenticated
+venue and founder routes fail closed until the public and server-only keys are
+configured.
 
-Use **Reset Demo** in Profile or Settings to return the app to first launch.
+## Backend
 
-## Repository structure
-
-- `ios/Outly/` — iPhone application source
-- `ios/OutlyLiveActivity/` — Live Activity extension
-- `ios/Shared/` — models shared by the app and extension
-- `ios/OutlyTests/` and `ios/OutlyUITests/` — automated tests
-- `ios/Screenshots/` and `ios/DemoVideos/` — current product references
-- `contracts/` — backend OpenAPI contract and portable examples
-- `design-system/` and `design-concepts/` — product design guidance
-
-## Backend boundary
-
-`contracts/openapi.yaml` is the starting point for the versioned API. Before
-connecting the app, define canonical onboarding and venue DTOs there. The server
-must be authoritative for authentication, attendance aggregation, check-in
-eligibility, and offer issuance or redemption; client location checks are a UX
-aid, not a security boundary.
-
-No web application is currently included. The future venue portal should be
-introduced as a separate target once its product and API requirements are ready.
+See `supabase/README.md` for the implemented data model, local verification,
+hosted deployment steps, Auth provider setup, and remaining production work.
+Database migrations are the source of truth. Supabase is authoritative for age
+eligibility, plans, geofence decisions, offer claims, entitlements, analytics,
+and account deletion; clients never receive the secret/service-role key.

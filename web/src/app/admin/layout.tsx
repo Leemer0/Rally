@@ -3,13 +3,20 @@ import Link from "next/link";
 import { CircleHelp, ShieldCheck } from "lucide-react";
 import { AdminMobileMenu, AdminSidebar } from "@/components/admin/admin-nav";
 import { Badge } from "@/components/ui/badge";
+import { requireFounderSession } from "@/lib/auth/founder";
 
 export const metadata: Metadata = {
   title: "Founder admin",
   robots: { index: false, follow: false },
 };
+export const dynamic = "force-dynamic";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const session = await requireFounderSession();
+  const initials = session.email
+    ? session.email.slice(0, 2).toUpperCase()
+    : "OA";
+
   return (
     <div className="min-h-[100dvh] bg-[#0b0e13]">
       <a
@@ -36,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               variant="outline"
               className="rounded-sm border-primary/24 bg-primary/[0.035] text-primary"
             >
-              Demo data
+              Live data
             </Badge>
             <Link
               href="mailto:founders@getoutly.app"
@@ -49,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               aria-label="Founder account"
               className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-xs font-medium"
             >
-              FL
+              {initials}
             </div>
           </div>
         </header>

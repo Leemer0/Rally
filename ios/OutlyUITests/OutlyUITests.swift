@@ -26,8 +26,19 @@ final class OutlyUITests: XCTestCase {
         nameField.typeText("Liam")
         app.buttons["onboarding-next"].tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)["age-input"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["date-of-birth"].waitForExistence(timeout: 3))
         app.buttons["onboarding-next"].tap()
+
+        let gender = app.buttons["Man"]
+        XCTAssertTrue(gender.waitForExistence(timeout: 3))
+        gender.tap()
+        let finish = app.buttons["onboarding-finish"]
+        XCTAssertFalse(finish.isEnabled)
+        let legalConsent = app.buttons["legal-consent"]
+        XCTAssertTrue(legalConsent.waitForExistence(timeout: 3))
+        legalConsent.tap()
+        XCTAssertTrue(finish.isEnabled)
+        finish.tap()
 
         XCTAssertTrue(app.buttons["explore-toronto"].waitForExistence(timeout: 3))
         app.buttons["explore-toronto"].tap()

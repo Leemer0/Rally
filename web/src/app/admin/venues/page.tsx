@@ -4,7 +4,7 @@ import {
   AdminPageHeader,
   AdminSelect,
   ConfirmationNotice,
-  DemoNotice,
+  ErrorNotice,
   StatusBadge,
 } from "@/components/admin/admin-ui";
 import { Input } from "@/components/ui/input";
@@ -17,13 +17,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { venues } from "@/lib/admin-demo-data";
+import {
+  formatAdminDate,
+  getFounderDashboardSnapshot,
+  presentStatus,
+} from "@/lib/data/founder-dashboard";
 import { cn } from "@/lib/utils";
 
 type SearchParams = Promise<{
   q?: string;
   status?: string;
   created?: string;
+  error?: string;
 }>;
 
 export default async function AdminVenuesPage({
@@ -31,15 +36,23 @@ export default async function AdminVenuesPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const params = await searchParams;
+  const [params, snapshot] = await Promise.all([
+    searchParams,
+    getFounderDashboardSnapshot(),
+  ]);
   const query = params.q?.trim().toLowerCase() ?? "";
   const status = params.status ?? "all";
-  const filteredVenues = venues.filter((venue) => {
+  const filteredVenues = snapshot.venues.filter((venue) => {
     const matchesQuery =
       !query ||
       venue.name.toLowerCase().includes(query) ||
-      venue.neighborhood.toLowerCase().includes(query);
-    const matchesStatus = status === "all" || venue.status.toLowerCase() === status;
+      venue.slug.toLowerCase().includes(query) ||
+      venue.neighbourhood?.toLowerCase().includes(query) ||
+      venue.businessEmail?.toLowerCase().includes(query);
+    const matchesStatus =
+      status === "all" ||
+      venue.registrationStatus === status ||
+      venue.claimStatus === status;
     return matchesQuery && matchesStatus;
   });
 
@@ -47,7 +60,7 @@ export default async function AdminVenuesPage({
     <div className="space-y-7">
       <AdminPageHeader
         title="Venues"
-        description="Add listings, review self-registrations, and monitor venue performance."
+        description="Add listings, review self-registrations, and monitor publication state."
         action={
           <Link
             href="/admin/venues/new"
@@ -60,11 +73,11 @@ export default async function AdminVenuesPage({
       />
 
       {params.created === "1" ? (
-        <ConfirmationNotice>
-          Prototype submission received. No venue record was saved.
-        </ConfirmationNotice>
+        <ConfirmationNotice>The venue was created and published.</ConfirmationNotice>
       ) : null}
-      <DemoNotice />
+      {params.error ? (
+        <ErrorNotice>The venue operation failed. Review the fields and try again.</ErrorNotice>
+      ) : null}
 
       <section className="overflow-hidden rounded-lg border border-white/10 bg-card">
         <form
@@ -80,23 +93,25 @@ export default async function AdminVenuesPage({
               name="q"
               defaultValue={params.q}
               aria-label="Search venues"
-              placeholder="Search name or neighborhood"
+              placeholder="Search name, neighbourhood, or email"
               className="h-11 bg-white/[0.025] pl-9"
             />
           </div>
-          <AdminSelect
-            id="venue-status"
-            name="status"
-            defaultValue={status}
-          >
+          <AdminSelect id="venue-status" name="status" defaultValue={status}>
             <option value="all">All statuses</option>
             <option value="approved">Approved</option>
-            <option value="pending">Pending</option>
-            <option value="paused">Paused</option>
+            <option value="pending_review">Pending review</option>
+            <option value="changes_requested">Changes requested</option>
+            <option value="suspended">Suspended</option>
+            <option value="rejected">Rejected</option>
+            <option value="archived">Archived</option>
           </AdminSelect>
           <button
             type="submit"
-            className={cn(buttonVariants({ variant: "secondary", size: "lg" }), "h-11 px-4")}
+            className={cn(
+              buttonVariants({ variant: "secondary", size: "lg" }),
+              "h-11 px-4",
+            )}
           >
             Apply filters
           </button>
@@ -120,10 +135,10 @@ export default async function AdminVenuesPage({
                 <TableRow className="border-white/8 hover:bg-transparent">
                   <TableHead className="pl-5">Venue</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="hidden lg:table-cell">Plan</TableHead>
-                  <TableHead className="hidden sm:table-cell">Tonight</TableHead>
-                  <TableHead className="hidden md:table-cell">30-day check-ins</TableHead>
-                  <TableHead className="hidden xl:table-cell">Repeat</TableHead>
+                  <TableHead className="hidden lg:table-cell">Publication</TableHead>
+                  <TableHead className="hidden sm:table-cell">Placement</TableHead>
+                  <TableHead className="hidden md:table-cell">Account</TableHead>
+                  <TableHead className="hidden xl:table-cell">Created</TableHead>
                   <TableHead className="pr-5 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -133,21 +148,27 @@ export default async function AdminVenuesPage({
                     <TableCell className="pl-5">
                       <p className="font-medium text-white/82">{venue.name}</p>
                       <p className="mt-0.5 text-[11px] text-white/36">
-                        {venue.neighborhood}
+                        {venue.neighbourhood || "Neighbourhood pending"}
                       </p>
                     </TableCell>
-                    <TableCell><StatusBadge status={venue.status} /></TableCell>
+                    <TableCell>
+                      <StatusBadge status={presentStatus(venue.registrationStatus)} />
+                    </TableCell>
                     <TableCell className="hidden text-white/54 lg:table-cell">
-                      {venue.plan}
+                      {presentStatus(venue.publicationStatus)}
                     </TableCell>
-                    <TableCell className="numeric hidden font-mono sm:table-cell">
-                      {venue.tonight}
+                    <TableCell className="hidden text-white/54 sm:table-cell">
+                      {presentStatus(venue.placementState)}
                     </TableCell>
-                    <TableCell className="numeric hidden font-mono md:table-cell">
-                      {venue.checkIns30d}
+                    <TableCell className="hidden text-white/54 md:table-cell">
+                      {venue.claimStatus && venue.claimStatus !== "approved"
+                        ? `Claim: ${presentStatus(venue.claimStatus)}`
+                        : venue.accountStatus
+                          ? presentStatus(venue.accountStatus)
+                          : "No login"}
                     </TableCell>
-                    <TableCell className="numeric hidden font-mono xl:table-cell">
-                      {venue.repeatRate}
+                    <TableCell className="hidden text-white/50 xl:table-cell">
+                      {formatAdminDate(venue.createdAt)}
                     </TableCell>
                     <TableCell className="pr-5 text-right">
                       <Link
@@ -165,18 +186,21 @@ export default async function AdminVenuesPage({
               </TableBody>
             </Table>
             <div className="border-t border-white/8 px-5 py-3 text-[11px] text-white/34">
-              Showing {filteredVenues.length} of {venues.length} fictional venues
+              Showing {filteredVenues.length} of {snapshot.venues.length} live venue records
             </div>
           </>
         ) : (
           <div className="px-5 py-16 text-center">
             <p className="font-medium">No venues match these filters</p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-white/42">
-              Try a different name, neighborhood, or approval status.
+              Try a different name, neighbourhood, or approval status.
             </p>
             <Link
               href="/admin/venues"
-              className={cn(buttonVariants({ variant: "outline" }), "mt-5 h-11 border-white/12")}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "mt-5 h-11 border-white/12",
+              )}
             >
               Reset filters
             </Link>

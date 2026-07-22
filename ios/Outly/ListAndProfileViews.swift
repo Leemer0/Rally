@@ -1,11 +1,12 @@
 import SwiftUI
 
 struct VenueListView: View {
+    @Environment(DemoStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Environment(OutlyTheme.self) private var theme
 
     private var venues: [Venue] {
-        VenueCatalog.venues.filter(router.filters.includes)
+        store.venues.filter(router.filters.includes)
     }
 
     var body: some View {
@@ -124,7 +125,7 @@ struct ProfileView: View {
 
                 SectionEyebrow(text: "Account").padding(.top, 22)
                 VStack(spacing: 0) {
-                    profileRow("Age", "\(store.profile.age)")
+                    profileRow("Age requirement", "19+ confirmed")
                     Divider().overlay(theme.border)
                     menuRow("Privacy") { router.presentedSheet = .info(.privacy) }
                     Divider().overlay(theme.border)
@@ -187,9 +188,11 @@ private struct ActivePlanCard: View {
     @Environment(DemoStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Environment(OutlyTheme.self) private var theme
+    @Environment(\.appServices) private var services
     let plan: NightPlan
+    @State private var isCancelling = false
 
-    private var venue: Venue { VenueCatalog.venue(id: plan.venueID) }
+    private var venue: Venue { store.venue(id: plan.venueID) }
     private var isCheckedIn: Bool { store.isCheckedIn(to: venue.id) }
 
     var body: some View {
@@ -226,7 +229,10 @@ private struct ActivePlanCard: View {
                                 store.preparePlan(for: venue.id)
                                 router.navigate(to: .rsvpReview(venue.id))
                             }
-                            Button("Cancel plan", role: .destructive) { store.cancelPlan() }
+                            Button("Cancel plan", role: .destructive) {
+                                Task { await cancelPlan() }
+                            }
+                            .disabled(isCancelling)
                         } label: {
                             Image(systemName: "ellipsis")
                         }
@@ -235,6 +241,24 @@ private struct ActivePlanCard: View {
                     }
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func cancelPlan() async {
+        guard !isCancelling else { return }
+        isCancelling = true
+        defer { isCancelling = false }
+
+        do {
+            if let planID = plan.id {
+                try await services.cancelNightPlan(planID)
+            } else if !services.isDemo {
+                return
+            }
+            store.cancelPlan()
+        } catch {
+            HapticManager.shared.error(enabled: store.state.hapticsEnabled)
         }
     }
 }

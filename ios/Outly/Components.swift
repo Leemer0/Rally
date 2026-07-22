@@ -303,6 +303,12 @@ struct AgeBarPill: View {
     var compact = false
 
     private var averageAge: Int? { distribution.averageAge }
+    private var highlightedAge: Int? {
+        guard let averageAge else { return nil }
+        return distribution.points.min {
+            abs($0.age - averageAge) < abs($1.age - averageAge)
+        }?.age
+    }
 
     var body: some View {
         if distribution.hasEnoughData, let averageAge {
@@ -329,7 +335,7 @@ struct AgeBarPill: View {
                         ForEach(Array(points.enumerated()), id: \.offset) { _, point in
                             RoundedRectangle(cornerRadius: compact ? 1 : 1.5, style: .continuous)
                                 .fill(
-                                    point.age == averageAge
+                                    point.age == highlightedAge
                                         ? theme.accent
                                         : theme.primaryText.opacity(0.13 + (0.23 * point.intensity))
                                 )
@@ -373,8 +379,13 @@ struct GenderMixLine: View {
     var compact = false
 
     private var menFraction: CGFloat {
-        let total = max(mix.menPercentage + mix.womenPercentage, 1)
+        let total = max(mix.menPercentage + mix.womenPercentage + mix.otherPercentage, 1)
         return CGFloat(mix.menPercentage) / CGFloat(total)
+    }
+
+    private var otherFraction: CGFloat {
+        let total = max(mix.menPercentage + mix.womenPercentage + mix.otherPercentage, 1)
+        return CGFloat(mix.otherPercentage) / CGFloat(total)
     }
 
     var body: some View {
@@ -387,6 +398,12 @@ struct GenderMixLine: View {
                     .font(.caption2)
                     .foregroundStyle(theme.secondaryText)
                 Spacer()
+                if mix.otherPercentage > 0 {
+                    Text("Another \(mix.otherPercentage)%")
+                        .font(.caption2)
+                        .foregroundStyle(theme.secondaryText)
+                    Spacer()
+                }
                 Text("Women")
                     .font(.caption2)
                     .foregroundStyle(theme.secondaryText)
@@ -397,12 +414,18 @@ struct GenderMixLine: View {
 
             GeometryReader { proxy in
                 let gap: CGFloat = 3
-                let usableWidth = max(proxy.size.width - gap, 0)
+                let gapCount: CGFloat = mix.otherPercentage > 0 ? 2 : 1
+                let usableWidth = max(proxy.size.width - (gap * gapCount), 0)
 
                 HStack(spacing: gap) {
                     Capsule()
                         .fill(theme.crowdCool)
                         .frame(width: usableWidth * menFraction)
+                    if mix.otherPercentage > 0 {
+                        Capsule()
+                            .fill(theme.secondaryText.opacity(0.72))
+                            .frame(width: usableWidth * otherFraction)
+                    }
                     Capsule()
                         .fill(theme.crowdWarm)
                 }

@@ -23,13 +23,14 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { signOutVenue } from "@/app/venue/actions";
 
 const navItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/venues", label: "Venues", icon: Building2 },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/partners", label: "Partners", icon: Handshake },
-  { href: "/admin/assignments", label: "Assignments", icon: Send },
+  { href: "/admin/assignments", label: "Offer approvals", icon: Send },
 ];
 
 function NavContent() {
@@ -81,13 +82,15 @@ function NavContent() {
       </nav>
 
       <div className="border-t border-sidebar-border p-3">
-        <Link
-          href="/"
-          className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm text-white/50 transition-colors hover:bg-white/[0.05] hover:text-white"
-        >
-          <LogOut className="size-4 text-white/36" strokeWidth={1.8} />
-          Exit admin
-        </Link>
+        <form action={signOutVenue}>
+          <button
+            type="submit"
+            className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm text-white/50 transition-colors hover:bg-white/[0.05] hover:text-white"
+          >
+            <LogOut className="size-4 text-white/36" strokeWidth={1.8} />
+            Sign out
+          </button>
+        </form>
       </div>
 
       <div className="border-t border-sidebar-border px-5 py-4">
@@ -96,7 +99,7 @@ function NavContent() {
           Founder access
         </div>
         <p className="mt-1.5 text-[11px] leading-4 text-white/34">
-          Prototype only. Role enforcement is not connected yet.
+          Access is verified against the founder allowlist.
         </p>
       </div>
     </>

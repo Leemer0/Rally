@@ -1,8 +1,1781 @@
 openapi: 3.1.0
 info:
-  title: Outly API
+  title: Outly Edge API
   version: 1.0.0
-  description: Public contract placeholder. Endpoints are added with their implementation.
+  description: |
+    Authenticated mobile, venue, and founder adapters over Outly's service-only
+    PostgreSQL workflows. Every operation derives the actor from the verified
+    Supabase JWT; no request accepts a user ID as authority.
+
+    The service-role key exists only inside Supabase Edge Functions. It must
+    never be sent to an iOS app, browser, or external caller.
 servers:
-  - url: /api/v1
-paths: {}
+  - url: "{supabaseUrl}/functions/v1"
+    description: Supabase Edge Functions
+    variables:
+      supabaseUrl:
+        default: https://PROJECT_REF.supabase.co
+        description: The Outly Supabase project URL.
+security:
+  - bearerAuth: []
+    supabaseApiKey: []
+tags:
+  - name: Consumer
+  - name: Plans
+  - name: Check-in
+  - name: Analytics
+  - name: Venue
+  - name: Account
+  - name: Founder
+
+paths:
+  /complete-consumer-onboarding:
+    post:
+      tags: [Consumer]
+      operationId: completeConsumerOnboarding
+      summary: Complete immutable consumer onboarding
+      description: Calculates 19+ eligibility on the server and stores DOB and gender privately.
+      x-error-codes:
+        - AGE_REQUIREMENT_NOT_MET
+        - ACCOUNT_TYPE_CONFLICT
+        - ACCOUNT_INACTIVE
+        - ONBOARDING_ALREADY_COMPLETE
+        - PROTECTED_PROFILE_IS_IMMUTABLE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsumerOnboardingRequest"
+      responses:
+        "200":
+          description: Onboarding completed or safely replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsumerOnboardingResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /consumer-bootstrap:
+    get:
+      tags: [Consumer]
+      operationId: getConsumerBootstrap
+      summary: Load the authenticated consumer app snapshot
+      description: |
+        Uses server time for discovery, offer eligibility, plans, check-ins,
+        claims, and privacy-suppressed crowd data. `current_check_in` is the
+        verified record for the current venue-local nightlife date when one
+        exists, otherwise the latest rejected attempt. It remains available
+        independently of `active_claim`, including when a verified check-in was
+        committed but offer claiming did not complete.
+      x-error-codes: [ONBOARDING_REQUIRED, ACCOUNT_INELIGIBLE]
+      responses:
+        "200":
+          description: Current profile, plan, check-in, active claim, and discovery data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsumerBootstrapResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /set-night-plan:
+    post:
+      tags: [Plans]
+      operationId: setNightPlan
+      summary: Create or replace tonight's venue plan
+      description: The idempotency key must remain stable across retries of the same command.
+      x-error-codes:
+        - ACCOUNT_INELIGIBLE
+        - VENUE_NOT_FOUND
+        - VENUE_UNAVAILABLE
+        - CHECK_IN_ALREADY_VERIFIED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetNightPlanRequest"
+      responses:
+        "200":
+          description: The new, existing, or replayed active plan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NightPlanResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /cancel-night-plan:
+    post:
+      tags: [Plans]
+      operationId: cancelNightPlan
+      summary: Cancel an owned planned venue visit
+      x-error-codes: [PLAN_NOT_FOUND, PLAN_NOT_CANCELLABLE]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelNightPlanRequest"
+      responses:
+        "200":
+          description: The cancelled plan. Replaying a completed cancellation is safe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NightPlanResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /check-in:
+    post:
+      tags: [Check-in]
+      operationId: verifyCheckInAndClaimOffer
+      summary: Verify venue location and optionally unlock its offer
+      description: |
+        Raw latitude and longitude are used by the database transaction to
+        derive the decision and distance, then discarded. If offer_id is
+        present, claim_idempotency_key is required.
+
+        Location verification is committed before the optional offer claim. If
+        verification succeeds but claiming fails, the endpoint keeps the claim
+        error's HTTP status and code and returns the verified, sanitized record
+        at `error.details.check_in`; lower-level details, when present, are at
+        `error.details.cause`. This is a partial success, not a rejected
+        check-in.
+
+        To resume the claim, retry the complete original request unchanged,
+        reusing both `check_in_idempotency_key` and `claim_idempotency_key` with
+        the same venue and offer. The verification RPC then replays the durable
+        check-in before attempting the claim again. A new check-in key starts a
+        different attempt and does not resume the verified one. Clients can
+        also recover the durable decision from
+        `consumer-bootstrap.data.current_check_in`; they must not infer a claim
+        unless `active_claim` is non-null.
+      x-error-codes:
+        - PERMISSION_DENIED
+        - REDUCED_ACCURACY
+        - INSUFFICIENT_ACCURACY
+        - STALE_SAMPLE
+        - FUTURE_SAMPLE
+        - OUTSIDE_GEOFENCE
+        - AMBIGUOUS_NEAREST_VENUE
+        - RATE_LIMITED
+        - ALREADY_CHECKED_IN
+        - OFFER_NOT_ELIGIBLE
+        - OFFER_NO_LONGER_AVAILABLE
+        - PARTNER_OFFER_REQUIRES_PRO_VENUE
+        - OFFER_CLAIM_CONFIG_MISSING
+        - CHECK_IN_TOO_OLD_TO_UNLOCK_OFFER
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckInRequest"
+      responses:
+        "200":
+          description: A verified check-in with an optional unlocked claim.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckInResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: |
+            A state conflict. When location verification already succeeded but
+            offer claiming failed, `error.details` follows
+            `CheckInClaimPartialFailureDetails`; retry the original request
+            unchanged with both original idempotency keys.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "422":
+          description: A durable rejected check-in decision. Error details contain the sanitized check-in record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /ingest-analytics-event:
+    post:
+      tags: [Analytics]
+      operationId: ingestAnalyticsEvent
+      summary: Record an allowed authenticated consumer analytics event
+      description: offer_cta_opened requires an active matching claim. The endpoint never accepts anonymous identities.
+      x-error-codes:
+        - ANALYTICS_EVENT_NOT_ALLOWED
+        - ANALYTICS_EVENT_TIME_INVALID
+        - ANALYTICS_OFFER_VENUE_MISMATCH
+        - ACTIVE_OFFER_CLAIM_REQUIRED
+        - IDEMPOTENCY_KEY_CONFLICT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyticsEventRequest"
+      responses:
+        "201":
+          description: Event stored or safely replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsEventResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /register-venue:
+    post:
+      tags: [Venue]
+      operationId: registerVenue
+      summary: Self-register a venue for founder review
+      description: |
+        The business email must match the Supabase Auth email and must be
+        confirmed before registration is consumed. A full submission is stored
+        privately first; if confirmation is still pending, the endpoint returns
+        `EMAIL_CONFIRMATION_REQUIRED` without losing the form. After the email
+        callback, send `{ "finalize_pending": true }` to consume it.
+
+        `existing_venue_id` requests a founder-reviewed link to an existing
+        approved, published, unclaimed listing. The public listing remains live
+        while the account is draft. A rejected claim unlinks the account without
+        changing the listing, allowing a later legitimate claimant. Omitting
+        `existing_venue_id` preserves new-listing registration behavior.
+      x-error-codes:
+        - BUSINESS_EMAIL_MISMATCH
+        - ACCOUNT_TYPE_CONFLICT
+        - EMAIL_CONFIRMATION_REQUIRED
+        - INVALID_VENUE_NAME
+        - PENDING_VENUE_REGISTRATION_NOT_FOUND
+        - VENUE_CLAIM_UNAVAILABLE
+        - VENUE_REGISTRATION_CONFLICT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueRegistrationRequest"
+      responses:
+        "201":
+          description: Registration created, or the existing registration returned after a replay.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueRegistrationResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /venue-registration-status:
+    get:
+      tags: [Venue]
+      operationId: getVenueRegistrationStatus
+      summary: Load the authenticated venue registration or listing-claim state
+      description: Returns only the signed-in business account's public review response. Private founder notes are never exposed.
+      x-error-codes:
+        - VENUE_ACCOUNT_NOT_FOUND
+      responses:
+        "200":
+          description: Current new-listing or existing-listing claim state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueRegistrationStatusResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /venue-dashboard:
+    get:
+      tags: [Venue]
+      operationId: getVenueDashboard
+      summary: Load the owned venue dashboard and privacy-safe analytics
+      description: Analytics history and demographic/repeat-visitor fields are entitlement and cohort gated by the database.
+      x-error-codes:
+        - VENUE_ACCOUNT_NOT_FOUND
+        - VENUE_ENTITLEMENT_MISSING
+        - INVALID_ANALYTICS_PERIOD
+      parameters:
+        - name: period_start
+          in: query
+          required: false
+          schema: { type: string, format: date }
+        - name: period_end
+          in: query
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Owned venue state, entitlements, and aggregated metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueDashboardResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /submit-venue-offer:
+    post:
+      tags: [Venue]
+      operationId: submitVenueOffer
+      summary: Create a standard venue offer draft or review submission
+      description: claim_duration_seconds may be null for no visible countdown, or 1-86400 seconds. Server entitlement expiry remains finite.
+      x-error-codes:
+        - VENUE_ACCOUNT_INELIGIBLE
+        - VENUE_ENTITLEMENT_MISSING
+        - ACTIVE_OFFER_LIMIT_REACHED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOfferSubmissionRequest"
+      responses:
+        "201":
+          description: Offer, immutable version, and schedule created or safely replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOfferSubmissionResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /get-venue-offer:
+    post:
+      tags: [Venue]
+      operationId: getVenueOffer
+      summary: Load an owned standard offer for editing
+      x-error-codes:
+        - VENUE_OFFER_NOT_FOUND
+        - VENUE_OFFER_REVISION_UNAVAILABLE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOfferEditorRequest"
+      responses:
+        "200":
+          description: Latest editable offer version, schedule, and public founder feedback.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOfferEditorResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /revise-venue-offer:
+    post:
+      tags: [Venue]
+      operationId: reviseVenueOffer
+      summary: Save or resubmit an owned venue offer revision
+      description: A changes-requested offer creates a new immutable version; an unsubmitted draft is updated in place. The idempotency key must remain stable across retries.
+      x-error-codes:
+        - VENUE_OFFER_NOT_FOUND
+        - VENUE_OFFER_NOT_EDITABLE
+        - VENUE_OFFER_REVISION_UNAVAILABLE
+        - OFFER_REVISION_CONFLICT
+        - IDEMPOTENCY_KEY_CONFLICT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOfferRevisionRequest"
+      responses:
+        "200":
+          description: Draft saved or latest version submitted for review.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOfferRevisionResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /set-venue-offer-status:
+    post:
+      tags: [Venue]
+      operationId: setVenueOfferStatus
+      summary: End or archive an owned standard venue offer
+      description: Ending a live offer prevents new claims. Drafts, rejected offers, changes-requested offers, and ended offers may be archived.
+      x-error-codes:
+        - VENUE_OFFER_NOT_FOUND
+        - VENUE_OFFER_ALREADY_ARCHIVED
+        - VENUE_OFFER_MUST_BE_ENDED_BEFORE_ARCHIVE
+        - IDEMPOTENCY_KEY_CONFLICT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueOfferStatusRequest"
+      responses:
+        "200":
+          description: Offer lifecycle updated or safely replayed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueOfferStatusResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /request-account-deletion:
+    post:
+      tags: [Account]
+      operationId: requestAccountDeletion
+      summary: Delete an authenticated consumer or venue account
+      description: Prepares data removal, deletes the Supabase Auth identity with the internal admin client, then completes the deletion ledger.
+      x-error-codes:
+        - CONSUMER_ACCOUNT_NOT_FOUND
+        - VENUE_ACCOUNT_NOT_FOUND
+        - ACTIVE_SUBSCRIPTION_CANCELLATION_REQUIRED
+        - ACCOUNT_DELETION_INCOMPLETE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionRequest"
+      responses:
+        "200":
+          description: Account and Auth identity deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-access:
+    post:
+      tags: [Founder]
+      operationId: checkFounderAccess
+      summary: Check whether the authenticated account is an active founder admin
+      responses:
+        "200":
+          description: Founder authorization result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderAccessResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-dashboard:
+    get:
+      tags: [Founder]
+      operationId: getFounderDashboard
+      summary: Load the founder operations snapshot
+      description: Requires an active private.internal_admins founder_admin record. This response contains private operational data.
+      x-error-codes: [FOUNDER_ACCESS_REQUIRED]
+      responses:
+        "200":
+          description: Founder metrics and review queues.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderDashboardResponse"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-create-venue:
+    post:
+      tags: [Founder]
+      operationId: founderCreateVenue
+      summary: Create an approved published venue listing
+      x-error-codes: [FOUNDER_ACCESS_REQUIRED, INVALID_VENUE_PARAMETER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FounderCreateVenueRequest"
+      responses:
+        "201":
+          description: Founder-created venue.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderVenueResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-review-venue:
+    post:
+      tags: [Founder]
+      operationId: founderReviewVenue
+      summary: Approve, request changes, reject, suspend, reinstate, or archive a venue
+      description: |
+        For a pending claim on an already approved listing, approved,
+        changes_requested, and rejected review the account link only. Claim
+        rejection never changes the venue's approved/published state and frees
+        it for a later claimant. Without an open claim, the existing venue
+        moderation workflow is unchanged.
+      x-error-codes:
+        - FOUNDER_ACCESS_REQUIRED
+        - VENUE_NOT_FOUND
+        - INVALID_VENUE_REVIEW_DECISION
+        - UNAPPROVED_VENUE_CANNOT_BE_SUSPENDED
+        - VENUE_CLAIM_LISTING_UNAVAILABLE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FounderReviewVenueRequest"
+      responses:
+        "200":
+          description: Updated venue publication state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderVenueResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-review-offer:
+    post:
+      tags: [Founder]
+      operationId: founderReviewOffer
+      summary: Review an immutable submitted offer version
+      x-error-codes:
+        - FOUNDER_ACCESS_REQUIRED
+        - OFFER_VERSION_NOT_FOUND
+        - OFFER_NOT_READY_FOR_APPROVAL
+        - APPROVED_OFFER_VERSION_IS_IMMUTABLE
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FounderReviewOfferRequest"
+      responses:
+        "200":
+          description: Updated offer/version review state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderOfferReviewResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-set-venue-plan:
+    post:
+      tags: [Founder]
+      operationId: founderSetVenuePlan
+      summary: Assign a manual Free or Pro MVP entitlement state
+      description: This is an operational entitlement control, not a payment endpoint. It creates no Stripe transaction.
+      x-error-codes: [FOUNDER_ACCESS_REQUIRED, INVALID_SUBSCRIPTION_STATE, VENUE_NOT_FOUND]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FounderSetVenuePlanRequest"
+      responses:
+        "200":
+          description: Effective manually-managed venue plan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderVenuePlanResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-upsert-partner:
+    post:
+      tags: [Founder]
+      operationId: founderUpsertPartner
+      summary: Create or update a private partner record and primary contact
+      x-error-codes: [FOUNDER_ACCESS_REQUIRED, PARTNER_NOT_FOUND]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FounderUpsertPartnerRequest"
+      responses:
+        "200":
+          description: Existing partner updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderPartnerResponse"
+        "201":
+          description: Partner created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderPartnerResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /founder-create-partner-campaign:
+    post:
+      tags: [Founder]
+      operationId: founderCreatePartnerCampaign
+      summary: Create an approved partner campaign and venue offers
+      description: |
+        Requires every selected venue to have active Pro partner access.
+        destination_url is stored in the approved immutable offer version but
+        is deliberately absent from this response and all pre-claim discovery
+        responses. It is released only in a verified active claim.
+      x-error-codes:
+        - FOUNDER_ACCESS_REQUIRED
+        - ACTIVE_PARTNER_WITH_LOGO_REQUIRED
+        - PARTNER_CAMPAIGN_REQUIRES_PRO_VENUES
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FounderPartnerCampaignRequest"
+      responses:
+        "201":
+          description: Campaign and generated offer identifiers. No destination is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FounderPartnerCampaignResponse"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Supabase JWT
+      description: Current authenticated user's Supabase access token.
+    supabaseApiKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Public Supabase publishable key. Never use a service-role or secret key here.
+
+  responses:
+    BadRequest:
+      description: Invalid JSON, unsupported fields, or invalid parameter values.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Unauthorized:
+      description: Missing, expired, or invalid Supabase user JWT.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Forbidden:
+      description: Authenticated but ineligible or not authorized for the operation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: The owned or referenced resource does not exist.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Conflict:
+      description: Current state, entitlement, eligibility, or idempotency conflict.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    RateLimited:
+      description: The check-in attempt window limit was reached.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ServiceUnavailable:
+      description: A durable operation was started but requires a safe retry.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ServerError:
+      description: Internal or backend contract failure. Raw database errors are never returned.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+    Timestamp:
+      type: string
+      format: date-time
+    NullableTimestamp:
+      oneOf:
+        - $ref: "#/components/schemas/Timestamp"
+        - type: "null"
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error, request_id]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              pattern: "^[A-Z0-9_]+$"
+            message: { type: string }
+            details: {}
+        request_id: { type: string }
+
+    ConsumerOnboardingRequest:
+      type: object
+      additionalProperties: false
+      required: [first_name, date_of_birth, gender, terms_version, privacy_version]
+      properties:
+        first_name: { type: string, minLength: 1, maxLength: 50 }
+        date_of_birth: { type: string, format: date }
+        gender: { type: string, enum: [man, woman, other] }
+        terms_version: { type: string, minLength: 1, maxLength: 80 }
+        privacy_version: { type: string, minLength: 1, maxLength: 80 }
+    ConsumerProfile:
+      type: object
+      required: [user_id, first_name, onboarding_status, account_status]
+      properties:
+        user_id: { $ref: "#/components/schemas/UUID" }
+        first_name: { type: string }
+        onboarding_status: { type: string, enum: [incomplete, complete] }
+        account_status: { type: string, enum: [active, suspended, deletion_pending, deleted] }
+        onboarding_completed_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        is_19_plus: { type: boolean }
+    ConsumerOnboardingResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [profile]
+          properties:
+            profile: { $ref: "#/components/schemas/ConsumerProfile" }
+
+    NightPlan:
+      type: object
+      additionalProperties: false
+      required: [id, venue_id, nightlife_date, status, created_at, updated_at]
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        nightlife_date: { type: string, format: date }
+        status: { type: string, enum: [planned, cancelled, replaced, checked_in, expired] }
+        replaces_plan_id:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+        updated_at: { $ref: "#/components/schemas/Timestamp" }
+        cancelled_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        replaced_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        checked_in_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        expired_at: { $ref: "#/components/schemas/NullableTimestamp" }
+    NightPlanResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [plan]
+          properties:
+            plan: { $ref: "#/components/schemas/NightPlan" }
+    SetNightPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [venue_id, idempotency_key]
+      properties:
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        idempotency_key: { $ref: "#/components/schemas/UUID" }
+    CancelNightPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_id]
+      properties:
+        plan_id: { $ref: "#/components/schemas/UUID" }
+
+    CheckInRequest:
+      type: object
+      additionalProperties: false
+      required: [venue_id, check_in_idempotency_key, location]
+      dependentRequired:
+        offer_id: [claim_idempotency_key]
+        claim_idempotency_key: [offer_id]
+      properties:
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        plan_id:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        offer_id:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        check_in_idempotency_key: { $ref: "#/components/schemas/UUID" }
+        claim_idempotency_key:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        location:
+          $ref: "#/components/schemas/LocationEvidence"
+    LocationEvidence:
+      type: object
+      additionalProperties: false
+      required:
+        - latitude
+        - longitude
+        - horizontal_accuracy_metres
+        - captured_at
+        - accuracy_authorization
+        - location_authorization
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        horizontal_accuracy_metres: { type: number, minimum: -1, maximum: 100000 }
+        captured_at: { $ref: "#/components/schemas/Timestamp" }
+        accuracy_authorization: { type: string, enum: [full, reduced, unknown] }
+        location_authorization:
+          type: string
+          enum: [when_in_use, always, denied, restricted, not_determined, unknown]
+    CheckIn:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - venue_id
+        - nightlife_date
+        - outcome
+        - server_requested_at
+        - server_verified_at
+        - configured_radius_metres
+        - verifier_version
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        plan_id:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        nightlife_date: { type: string, format: date }
+        outcome: { type: string, enum: [verified, rejected] }
+        rejection_reason:
+          oneOf:
+            - type: string
+              enum: [permission_denied, reduced_accuracy, insufficient_accuracy, stale_sample, future_sample, outside_geofence, ambiguous_nearest_venue, venue_unavailable, account_ineligible, rate_limited, already_checked_in, invalid_request]
+            - type: "null"
+        client_location_captured_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        server_requested_at: { $ref: "#/components/schemas/Timestamp" }
+        server_verified_at: { $ref: "#/components/schemas/Timestamp" }
+        horizontal_accuracy_metres: { type: [number, "null"] }
+        location_age_seconds: { type: [number, "null"] }
+        distance_from_venue_metres: { type: [number, "null"] }
+        configured_radius_metres: { type: integer }
+        verifier_version: { type: string }
+    CheckInClaimPartialFailureDetails:
+      type: object
+      additionalProperties: false
+      required: [check_in]
+      description: |
+        Returned in `error.details` after location verification was durably
+        committed but the optional offer claim failed. Retry the original
+        request unchanged with both original idempotency keys.
+      properties:
+        check_in:
+          allOf:
+            - $ref: "#/components/schemas/CheckIn"
+            - type: object
+              properties:
+                outcome: { const: verified }
+        cause:
+          description: Sanitized lower-level error details, when available.
+    CurrentCheckIn:
+      type: object
+      additionalProperties: false
+      required: [id, venue_id, server_verified_at, outcome]
+      description: |
+        Authoritative check-in for the current venue-local nightlife date: the
+        verified record when present, otherwise the latest rejected attempt.
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        server_verified_at: { $ref: "#/components/schemas/Timestamp" }
+        outcome: { type: string, enum: [verified, rejected] }
+    OfferPresentation:
+      type: object
+      required: [offer_id, offer_version_id, kind, title, cta_label, claim_duration_seconds]
+      properties:
+        offer_id: { $ref: "#/components/schemas/UUID" }
+        offer_version_id: { $ref: "#/components/schemas/UUID" }
+        kind: { type: string, enum: [standard, partner] }
+        title: { type: string }
+        explanation: { type: [string, "null"] }
+        cta_label: { type: string }
+        redemption_mode: { type: string, enum: [staff_display, external_link] }
+        destination_url:
+          description: Present only after a verified claim for external-link offers.
+          type: [string, "null"]
+          format: uri
+        staff_display_title: { type: [string, "null"] }
+        staff_instruction: { type: [string, "null"] }
+        fine_print: { type: [string, "null"] }
+        claim_duration_seconds: { type: [integer, "null"], minimum: 1, maximum: 86400 }
+        presentation_kind: { type: string, enum: [standard, partner] }
+        sponsor_display_name: { type: [string, "null"] }
+        sponsor_logo_storage_path: { type: [string, "null"] }
+        sponsor_logo_alt_text: { type: [string, "null"] }
+        sponsor_disclosure: { type: [string, "null"] }
+        discovery_treatment: { type: string, enum: [none, outly_exclusive, partner_featured] }
+        discovery_badge_label: { type: [string, "null"] }
+        discovery_icon_key: { type: [string, "null"] }
+    ActiveClaim:
+      type: object
+      required: [claim_id, venue_id, unlocked_at, entitlement_expires_at, status, staff_reference, offer]
+      properties:
+        claim_id: { $ref: "#/components/schemas/UUID" }
+        check_in_id: { $ref: "#/components/schemas/UUID" }
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        venue_slug: { type: string }
+        unlocked_at: { $ref: "#/components/schemas/Timestamp" }
+        countdown_ends_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        entitlement_expires_at: { $ref: "#/components/schemas/Timestamp" }
+        status: { type: string, enum: [active, expired, voided] }
+        staff_reference: { type: string }
+        offer: { $ref: "#/components/schemas/OfferPresentation" }
+    CheckInResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [check_in, claim]
+          properties:
+            check_in: { $ref: "#/components/schemas/CheckIn" }
+            claim:
+              oneOf: [{ $ref: "#/components/schemas/ActiveClaim" }, { type: "null" }]
+
+    DiscoveryOffer:
+      description: Eligible offer preview. External destination and staff redemption data are intentionally absent before claim.
+      type: object
+      required: [offer_id, offer_version_id, kind, title, cta_label]
+      properties:
+        offer_id: { $ref: "#/components/schemas/UUID" }
+        offer_version_id: { $ref: "#/components/schemas/UUID" }
+        kind: { type: string, enum: [standard, partner] }
+        title: { type: string }
+        explanation: { type: [string, "null"] }
+        cta_label: { type: string }
+        fine_print: { type: [string, "null"] }
+        claim_duration_seconds: { type: [integer, "null"], minimum: 1, maximum: 86400 }
+        sponsor_display_name: { type: [string, "null"] }
+        sponsor_logo_storage_path: { type: [string, "null"] }
+        sponsor_logo_alt_text: { type: [string, "null"] }
+        sponsor_disclosure: { type: [string, "null"] }
+        discovery_treatment: { type: string, enum: [none, outly_exclusive, partner_featured] }
+        discovery_badge_label: { type: [string, "null"] }
+        discovery_icon_key: { type: [string, "null"] }
+    VenueCrowd:
+      type: object
+      required: [going_count, demographics_available, average_age, age_distribution, gender]
+      properties:
+        going_count: { type: integer, minimum: 0 }
+        demographics_available: { type: boolean }
+        average_age: { type: [integer, "null"] }
+        age_distribution:
+          oneOf:
+            - type: array
+              description: Privacy-rounded five-point percentages for broad age ranges.
+              items:
+                type: object
+                required: [label, percentage]
+                properties:
+                  label: { type: string, enum: ["19–21", "22–24", "25–27", "28–30", "31–34", "35–39", "40+"] }
+                  percentage: { type: integer, minimum: 0, maximum: 100, multipleOf: 5 }
+            - type: "null"
+        gender:
+          oneOf:
+            - type: object
+              required: [man, woman, other]
+              properties:
+                man: { type: integer, minimum: 0, maximum: 100, multipleOf: 5, description: Privacy-rounded percentage. }
+                woman: { type: integer, minimum: 0, maximum: 100, multipleOf: 5, description: Privacy-rounded percentage. }
+                other: { type: integer, minimum: 0, maximum: 100, multipleOf: 5, description: Privacy-rounded percentage. }
+            - type: "null"
+    VenueHour:
+      type: object
+      required: [weekday, interval_number, is_closed]
+      properties:
+        weekday: { type: integer, minimum: 0, maximum: 6 }
+        interval_number: { type: integer, minimum: 1, maximum: 2 }
+        opens_at: { type: [string, "null"] }
+        closes_at: { type: [string, "null"] }
+        is_closed: { type: boolean }
+    DiscoveryVenue:
+      type: object
+      required: [id, slug, name, latitude, longitude, timezone, hours, tonights_crowd, offer]
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        slug: { type: string }
+        name: { type: string }
+        neighbourhood: { type: [string, "null"] }
+        address: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        timezone: { type: string }
+        placement_state: { type: string, enum: [standard, featured] }
+        hero_storage_path: { type: [string, "null"] }
+        marker_storage_path: { type: [string, "null"] }
+        hours:
+          type: array
+          items: { $ref: "#/components/schemas/VenueHour" }
+        tonights_crowd: { $ref: "#/components/schemas/VenueCrowd" }
+        offer:
+          oneOf: [{ $ref: "#/components/schemas/DiscoveryOffer" }, { type: "null" }]
+    ConsumerBootstrapResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [server_time, profile, current_plan, current_check_in, active_claim, venues]
+          properties:
+            server_time: { $ref: "#/components/schemas/Timestamp" }
+            profile: { $ref: "#/components/schemas/ConsumerProfile" }
+            current_plan:
+              oneOf: [{ $ref: "#/components/schemas/NightPlan" }, { type: "null" }]
+            current_check_in:
+              oneOf: [{ $ref: "#/components/schemas/CurrentCheckIn" }, { type: "null" }]
+            active_claim:
+              oneOf: [{ $ref: "#/components/schemas/ActiveClaim" }, { type: "null" }]
+            venues:
+              type: array
+              items: { $ref: "#/components/schemas/DiscoveryVenue" }
+
+    AnalyticsEventRequest:
+      type: object
+      additionalProperties: false
+      required: [event_name, venue_id, client_occurred_at, source, idempotency_key]
+      properties:
+        event_name: { type: string, enum: [venue_impression, venue_detail_view, offer_cta_opened] }
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        offer_id:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        client_occurred_at: { $ref: "#/components/schemas/Timestamp" }
+        source: { type: string, enum: [ios, web] }
+        app_version: { type: [string, "null"], minLength: 1, maxLength: 80 }
+        idempotency_key: { $ref: "#/components/schemas/UUID" }
+    AnalyticsEventResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [event_id]
+          properties:
+            event_id: { type: integer, format: int64 }
+
+    VenueRegistrationRequest:
+      oneOf:
+        - $ref: "#/components/schemas/VenueRegistrationSubmissionRequest"
+        - $ref: "#/components/schemas/VenueRegistrationFinalizeRequest"
+    VenueRegistrationSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name, venue_address, legal_business_name, legal_address, primary_contact_name, business_email, business_phone, venue_agreement_version]
+      properties:
+        existing_venue_id:
+          description: Existing approved, published listing to claim; omit to create a new listing.
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        venue_address: { type: string, minLength: 1, maxLength: 160 }
+        legal_business_name: { type: string, minLength: 1, maxLength: 160 }
+        legal_address: { type: string, minLength: 5, maxLength: 300 }
+        primary_contact_name: { type: string, minLength: 1, maxLength: 120 }
+        primary_contact_title: { type: [string, "null"], minLength: 1, maxLength: 100 }
+        business_email: { type: string, format: email, maxLength: 254 }
+        business_phone: { type: string, minLength: 7, maxLength: 32 }
+        venue_agreement_version: { type: string, minLength: 1, maxLength: 80 }
+    VenueRegistrationFinalizeRequest:
+      type: object
+      additionalProperties: false
+      required: [finalize_pending]
+      properties:
+        finalize_pending: { const: true }
+    VenueRegistrationResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [registration]
+          properties:
+            registration:
+              type: object
+              required: [venue_id, venue_slug, registration_status, account_status]
+              properties:
+                venue_id: { $ref: "#/components/schemas/UUID" }
+                venue_slug: { type: string }
+                registration_status: { type: string }
+                account_status: { type: string }
+
+    VenueRegistrationStatusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [registration]
+          properties:
+            registration:
+              type: object
+              additionalProperties: false
+              required: [workflow_type, venue_id, venue_name, registration_status, publication_status, account_status, claim_status, public_response, reviewed_at, can_resubmit]
+              properties:
+                workflow_type: { type: string, enum: [new_listing, existing_listing_claim] }
+                venue_id: { $ref: "#/components/schemas/UUID" }
+                venue_name: { type: string }
+                registration_status: { type: string }
+                publication_status: { type: string }
+                account_status: { type: [string, "null"] }
+                claim_status:
+                  type: [string, "null"]
+                  enum: [pending_review, changes_requested, superseded, approved, rejected, withdrawn, null]
+                public_response: { type: [string, "null"], maxLength: 1000 }
+                reviewed_at: { $ref: "#/components/schemas/NullableTimestamp" }
+                can_resubmit: { type: boolean }
+
+    VenueOfferSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required: [idempotency_key, public_title, staff_display_title, staff_instruction, nightlife_start_date, eligible_weekdays]
+      properties:
+        idempotency_key: { $ref: "#/components/schemas/UUID" }
+        public_title: { type: string, minLength: 1, maxLength: 140 }
+        short_explanation: { type: [string, "null"], minLength: 1, maxLength: 240 }
+        staff_display_title: { type: string, minLength: 1, maxLength: 140 }
+        staff_instruction: { type: string, minLength: 1, maxLength: 240 }
+        claim_duration_seconds:
+          description: Null hides the consumer countdown. Server entitlement expiry remains finite.
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 86400
+        nightlife_start_date: { type: string, format: date }
+        nightlife_end_date: { type: [string, "null"], format: date }
+        eligible_weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 0, maximum: 6 }
+        daily_starts_at: { type: [string, "null"] }
+        daily_ends_at: { type: [string, "null"] }
+        check_in_starts_at: { type: [string, "null"] }
+        check_in_cutoff_at: { type: [string, "null"] }
+        plan_cutoff_at: { type: [string, "null"] }
+        occurrence_claim_limit: { type: [integer, "null"], minimum: 1 }
+        submit_for_review: { type: boolean, default: false }
+    VenueOfferSubmissionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [offer]
+          properties:
+            offer:
+              type: object
+              required: [offer_id, offer_version_id, schedule_id, lifecycle_status, approval_state]
+              properties:
+                offer_id: { $ref: "#/components/schemas/UUID" }
+                offer_version_id: { $ref: "#/components/schemas/UUID" }
+                schedule_id: { $ref: "#/components/schemas/UUID" }
+                lifecycle_status: { type: string }
+                approval_state: { type: string }
+
+    VenueOfferEditorRequest:
+      type: object
+      additionalProperties: false
+      required: [offer_id]
+      properties:
+        offer_id: { $ref: "#/components/schemas/UUID" }
+
+    VenueOfferFeedback:
+      type: object
+      additionalProperties: false
+      required: [decision, public_response, created_at]
+      properties:
+        decision: { type: string, enum: [changes_requested, rejected, approved] }
+        public_response: { type: [string, "null"], maxLength: 1000 }
+        created_at: { $ref: "#/components/schemas/Timestamp" }
+
+    VenueOfferSchedule:
+      type: object
+      additionalProperties: false
+      required: [nightlife_start_date, nightlife_end_date, eligible_weekdays, daily_starts_at, daily_ends_at, check_in_starts_at, check_in_cutoff_at, plan_cutoff_at, occurrence_claim_limit]
+      properties:
+        nightlife_start_date: { type: string, format: date }
+        nightlife_end_date: { type: [string, "null"], format: date }
+        eligible_weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 0, maximum: 6 }
+        daily_starts_at: { type: [string, "null"] }
+        daily_ends_at: { type: [string, "null"] }
+        check_in_starts_at: { type: [string, "null"] }
+        check_in_cutoff_at: { type: [string, "null"] }
+        plan_cutoff_at: { type: [string, "null"] }
+        occurrence_claim_limit: { type: [integer, "null"], minimum: 1 }
+
+    VenueOfferEditorResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [offer]
+          properties:
+            offer:
+              type: object
+              additionalProperties: false
+              required: [offer_id, offer_version_id, version_number, lifecycle_status, approval_state, can_edit, public_title, short_explanation, staff_display_title, staff_instruction, claim_duration_seconds, schedule, latest_feedback]
+              properties:
+                offer_id: { $ref: "#/components/schemas/UUID" }
+                offer_version_id: { $ref: "#/components/schemas/UUID" }
+                version_number: { type: integer, minimum: 1 }
+                lifecycle_status: { type: string }
+                approval_state: { type: string }
+                can_edit: { type: boolean }
+                public_title: { type: string }
+                short_explanation: { type: [string, "null"] }
+                staff_display_title: { type: string }
+                staff_instruction: { type: string }
+                claim_duration_seconds: { type: [integer, "null"], minimum: 1, maximum: 86400 }
+                schedule: { $ref: "#/components/schemas/VenueOfferSchedule" }
+                latest_feedback:
+                  oneOf: [{ $ref: "#/components/schemas/VenueOfferFeedback" }, { type: "null" }]
+
+    VenueOfferRevisionRequest:
+      type: object
+      additionalProperties: false
+      required: [offer_id, offer_version_id, idempotency_key, public_title, staff_display_title, staff_instruction, nightlife_start_date, eligible_weekdays]
+      properties:
+        offer_id: { $ref: "#/components/schemas/UUID" }
+        offer_version_id: { $ref: "#/components/schemas/UUID" }
+        idempotency_key: { $ref: "#/components/schemas/UUID" }
+        public_title: { type: string, minLength: 1, maxLength: 140 }
+        short_explanation: { type: [string, "null"], minLength: 1, maxLength: 240 }
+        staff_display_title: { type: string, minLength: 1, maxLength: 140 }
+        staff_instruction: { type: string, minLength: 1, maxLength: 240 }
+        claim_duration_seconds: { type: [integer, "null"], minimum: 1, maximum: 86400 }
+        nightlife_start_date: { type: string, format: date }
+        nightlife_end_date: { type: [string, "null"], format: date }
+        eligible_weekdays:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: integer, minimum: 0, maximum: 6 }
+        daily_starts_at: { type: [string, "null"] }
+        daily_ends_at: { type: [string, "null"] }
+        check_in_starts_at: { type: [string, "null"] }
+        check_in_cutoff_at: { type: [string, "null"] }
+        plan_cutoff_at: { type: [string, "null"] }
+        occurrence_claim_limit: { type: [integer, "null"], minimum: 1 }
+        submit_for_review: { type: boolean, default: false }
+
+    VenueOfferRevisionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [offer]
+          properties:
+            offer:
+              type: object
+              additionalProperties: false
+              required: [offer_id, offer_version_id, schedule_id, version_number, lifecycle_status, approval_state]
+              properties:
+                offer_id: { $ref: "#/components/schemas/UUID" }
+                offer_version_id: { $ref: "#/components/schemas/UUID" }
+                schedule_id: { $ref: "#/components/schemas/UUID" }
+                version_number: { type: integer, minimum: 1 }
+                lifecycle_status: { type: string, enum: [draft, pending_review] }
+                approval_state: { type: string, enum: [draft, pending_review] }
+
+    VenueOfferStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [offer_id, idempotency_key, target_status]
+      properties:
+        offer_id: { $ref: "#/components/schemas/UUID" }
+        idempotency_key: { $ref: "#/components/schemas/UUID" }
+        target_status: { type: string, enum: [ended, archived] }
+
+    VenueOfferStatusResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [offer]
+          properties:
+            offer:
+              type: object
+              additionalProperties: false
+              required: [offer_id, lifecycle_status, archived_at]
+              properties:
+                offer_id: { $ref: "#/components/schemas/UUID" }
+                lifecycle_status: { type: string, enum: [ended, archived] }
+                archived_at: { $ref: "#/components/schemas/NullableTimestamp" }
+
+    VenueDashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [server_time, period, venue, subscription, metrics, daily_activity, check_ins_by_hour, demographics_suppressed, offers]
+          properties:
+            server_time: { $ref: "#/components/schemas/Timestamp" }
+            period:
+              type: object
+              required: [start, end, maximum_history_days]
+              properties:
+                start: { type: string, format: date }
+                end: { type: string, format: date }
+                maximum_history_days: { type: integer }
+            venue:
+              type: object
+              required: [id, slug, name, registration_status, publication_status, account_status]
+              properties:
+                id: { $ref: "#/components/schemas/UUID" }
+                slug: { type: string }
+                name: { type: string }
+                registration_status: { type: string }
+                publication_status: { type: string }
+                account_status: { type: string }
+                neighbourhood: { type: [string, "null"] }
+                address: { type: string }
+            subscription:
+              type: object
+              required: [plan_code, billing_plan_code, status, entitlements]
+              properties:
+                plan_code: { type: string, enum: [free, pro] }
+                billing_plan_code: { type: string, enum: [free, pro] }
+                status: { type: string }
+                entitlements:
+                  type: object
+                  additionalProperties: true
+            metrics:
+              type: object
+              required: [impressions, detail_viewers, plans, check_in_attempts, verified_check_ins, offers_unlocked, returning_visitors]
+              properties:
+                impressions: { type: integer, minimum: 0 }
+                detail_viewers: { type: integer, minimum: 0 }
+                plans: { type: integer, minimum: 0 }
+                check_in_attempts: { type: integer, minimum: 0 }
+                verified_check_ins: { type: integer, minimum: 0 }
+                offers_unlocked: { type: integer, minimum: 0 }
+                returning_visitors: { type: [integer, "null"], minimum: 0 }
+            daily_activity:
+              type: array
+              items:
+                type: object
+                required: [date, impressions, detail_viewers, plans, verified_check_ins, offers_unlocked]
+                properties:
+                  date: { type: string, format: date }
+                  impressions: { type: integer }
+                  detail_viewers: { type: integer }
+                  plans: { type: integer }
+                  verified_check_ins: { type: integer }
+                  offers_unlocked: { type: integer }
+            check_ins_by_hour:
+              type: array
+              items:
+                type: object
+                required: [hour, count]
+                properties:
+                  hour: { type: integer, minimum: 0, maximum: 23 }
+                  count: { type: integer, minimum: 0 }
+            demographics:
+              oneOf:
+                - type: object
+                  required: [cohort_size, average_age, gender]
+                  properties:
+                    cohort_size: { type: integer }
+                    average_age: { type: integer }
+                    gender:
+                      type: object
+                      required: [man, woman, other]
+                      properties:
+                        man: { type: integer, minimum: 0, maximum: 100, multipleOf: 5, description: Privacy-rounded percentage. }
+                        woman: { type: integer, minimum: 0, maximum: 100, multipleOf: 5, description: Privacy-rounded percentage. }
+                        other: { type: integer, minimum: 0, maximum: 100, multipleOf: 5, description: Privacy-rounded percentage. }
+                - type: "null"
+            demographics_suppressed: { type: boolean }
+            offers:
+              type: array
+              items:
+                type: object
+                required: [offer_id, title, status, approval_state, claim_duration_seconds, unlocked_count]
+                properties:
+                  offer_id: { $ref: "#/components/schemas/UUID" }
+                  title: { type: string }
+                  status: { type: string }
+                  approval_state: { type: string }
+                  claim_duration_seconds: { type: [integer, "null"] }
+                  unlocked_count: { type: integer }
+
+    AccountDeletionRequest:
+      type: object
+      additionalProperties: false
+      required: [subject_type, idempotency_key]
+      properties:
+        subject_type: { type: string, enum: [consumer, venue] }
+        idempotency_key: { $ref: "#/components/schemas/UUID" }
+    DeletionResult:
+      type: object
+      required: [deletion_request_id, deletion_state, subject_type]
+      properties:
+        deletion_request_id: { type: integer, format: int64 }
+        deletion_state: { type: string, enum: [processing, completed] }
+        subject_type: { type: string, enum: [consumer, venue] }
+    AccountDeletionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [deletion]
+          properties:
+            deletion: { $ref: "#/components/schemas/DeletionResult" }
+
+    FounderAccessResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [authorized]
+          properties:
+            authorized: { type: boolean }
+
+    FounderDashboardResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [server_time, metrics, venues, consumers, offer_review_queue, partners]
+          properties:
+            server_time: { $ref: "#/components/schemas/Timestamp" }
+            metrics:
+              type: object
+              additionalProperties: { type: integer }
+            venues:
+              type: array
+              items:
+                type: object
+                required: [id, slug, name, registration_status, publication_status, plan_code, partner_campaign_access, created_at]
+                properties:
+                  id: { $ref: "#/components/schemas/UUID" }
+                  slug: { type: string }
+                  name: { type: string }
+                  neighbourhood: { type: [string, "null"] }
+                  registration_status: { type: string }
+                  publication_status: { type: string }
+                  placement_state: { type: string }
+                  account_status: { type: [string, "null"] }
+                  business_email: { type: [string, "null"], format: email }
+                  claim_status:
+                    type: [string, "null"]
+                    enum: [pending_review, changes_requested, superseded, approved, rejected, withdrawn, null]
+                  plan_code: { type: [string, "null"], enum: [free, pro, null] }
+                  subscription_status:
+                    type: [string, "null"]
+                    enum: [free, trialing, active, past_due, unpaid, paused, cancelled, incomplete, incomplete_expired, null]
+                  partner_campaign_access:
+                    type: boolean
+                    description: Effective entitlement after subscription/trial status is applied.
+                  created_at: { $ref: "#/components/schemas/Timestamp" }
+            consumers:
+              type: array
+              maxItems: 250
+              items:
+                type: object
+                required: [user_id, email, first_name, onboarding_status, account_status, created_at]
+                properties:
+                  user_id: { $ref: "#/components/schemas/UUID" }
+                  email: { type: string, format: email }
+                  first_name: { type: string }
+                  onboarding_status: { type: string }
+                  account_status: { type: string }
+                  created_at: { $ref: "#/components/schemas/Timestamp" }
+            offer_review_queue:
+              type: array
+              items:
+                type: object
+                required: [offer_id, offer_version_id, venue_id, venue_name, kind, title, approval_state]
+                properties:
+                  offer_id: { $ref: "#/components/schemas/UUID" }
+                  offer_version_id: { $ref: "#/components/schemas/UUID" }
+                  venue_id: { $ref: "#/components/schemas/UUID" }
+                  venue_name: { type: string }
+                  kind: { type: string }
+                  title: { type: string }
+                  submitted_at: { $ref: "#/components/schemas/NullableTimestamp" }
+                  approval_state: { type: string }
+            partners:
+              type: array
+              items:
+                type: object
+                required: [id, brand_name, legal_name, status, campaign_count]
+                properties:
+                  id: { $ref: "#/components/schemas/UUID" }
+                  brand_name: { type: string }
+                  legal_name: { type: string }
+                  status: { type: string }
+                  website_url: { type: [string, "null"], format: uri }
+                  campaign_count: { type: integer }
+
+    FounderCreateVenueRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name, address_line_1, neighbourhood, postal_code, latitude, longitude]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        address_line_1: { type: string, minLength: 1, maxLength: 160 }
+        neighbourhood: { type: string, minLength: 1, maxLength: 80 }
+        postal_code: { type: string, minLength: 2, maxLength: 16 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        geofence_radius_metres: { type: integer, minimum: 25, maximum: 200, default: 75 }
+    FounderReviewVenueRequest:
+      type: object
+      additionalProperties: false
+      required: [venue_id, decision]
+      dependentRequired:
+        latitude: [longitude]
+        longitude: [latitude]
+      properties:
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        decision: { type: string, enum: [approved, changes_requested, rejected, suspended, reinstated, archived] }
+        public_response: { type: [string, "null"], maxLength: 1000 }
+        private_note: { type: [string, "null"], maxLength: 4000 }
+        neighbourhood: { type: [string, "null"], maxLength: 80 }
+        postal_code: { type: [string, "null"], maxLength: 16 }
+        latitude: { type: [number, "null"], minimum: -90, maximum: 90 }
+        longitude: { type: [number, "null"], minimum: -180, maximum: 180 }
+        geofence_radius_metres: { type: [integer, "null"], minimum: 25, maximum: 200 }
+    FounderVenueResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [venue]
+          properties:
+            venue:
+              type: object
+              required: [id, registration_status, publication_status]
+              properties:
+                id: { $ref: "#/components/schemas/UUID" }
+                slug: { type: string }
+                name: { type: string }
+                registration_status: { type: string }
+                publication_status: { type: string }
+                claim_status:
+                  type: [string, "null"]
+                  enum: [pending_review, changes_requested, superseded, approved, rejected, withdrawn, null]
+                account_status: { type: [string, "null"] }
+
+    FounderReviewOfferRequest:
+      type: object
+      additionalProperties: false
+      required: [offer_version_id, decision]
+      properties:
+        offer_version_id: { $ref: "#/components/schemas/UUID" }
+        decision: { type: string, enum: [approved, changes_requested, rejected] }
+        public_response: { type: [string, "null"], maxLength: 1000 }
+        private_note: { type: [string, "null"], maxLength: 4000 }
+    FounderOfferReviewResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [offer]
+          properties:
+            offer:
+              type: object
+              required: [offer_id, offer_version_id, lifecycle_status, approval_state]
+              properties:
+                offer_id: { $ref: "#/components/schemas/UUID" }
+                offer_version_id: { $ref: "#/components/schemas/UUID" }
+                lifecycle_status: { type: string }
+                approval_state: { type: string }
+
+    FounderSetVenuePlanRequest:
+      type: object
+      additionalProperties: false
+      required: [venue_id, plan_code, status]
+      properties:
+        venue_id: { $ref: "#/components/schemas/UUID" }
+        plan_code: { type: string, enum: [free, pro] }
+        status: { type: string, enum: [free, trialing, active] }
+        trial_ends_at: { $ref: "#/components/schemas/NullableTimestamp" }
+    FounderVenuePlanResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [subscription]
+          properties:
+            subscription:
+              type: object
+              required: [venue_id, plan_code, status, trial_ends_at]
+              properties:
+                venue_id: { $ref: "#/components/schemas/UUID" }
+                plan_code: { type: string, enum: [free, pro] }
+                status: { type: string, enum: [free, trialing, active] }
+                trial_ends_at: { $ref: "#/components/schemas/NullableTimestamp" }
+
+    FounderUpsertPartnerRequest:
+      type: object
+      additionalProperties: false
+      required: [brand_name, legal_name, logo_storage_path, logo_alt_text, contact_name, contact_email]
+      properties:
+        partner_id:
+          oneOf: [{ $ref: "#/components/schemas/UUID" }, { type: "null" }]
+        brand_name: { type: string, minLength: 1, maxLength: 120 }
+        legal_name: { type: string, minLength: 1, maxLength: 180 }
+        website_url: { type: [string, "null"], format: uri, pattern: "^https://" }
+        industry: { type: [string, "null"], minLength: 1, maxLength: 120 }
+        logo_storage_path: { type: string, minLength: 15, maxLength: 512, pattern: "^partner-media/(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]*[A-Za-z0-9]$" }
+        logo_alt_text: { type: string, minLength: 1, maxLength: 180 }
+        contact_name: { type: string, minLength: 1, maxLength: 120 }
+        contact_email: { type: string, format: email, maxLength: 254 }
+        contact_phone: { type: [string, "null"], minLength: 7, maxLength: 32 }
+    FounderPartnerResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [partner]
+          properties:
+            partner:
+              type: object
+              required: [id, brand_name, status]
+              properties:
+                id: { $ref: "#/components/schemas/UUID" }
+                brand_name: { type: string }
+                status: { type: string }
+
+    FounderPartnerCampaignRequest:
+      type: object
+      additionalProperties: false
+      required: [partner_id, venue_ids, internal_name, public_title, cta_label, destination_url, sponsor_disclosure, starts_at]
+      properties:
+        partner_id: { $ref: "#/components/schemas/UUID" }
+        venue_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/UUID" }
+        internal_name: { type: string, minLength: 1, maxLength: 160 }
+        public_title: { type: string, minLength: 1, maxLength: 140 }
+        short_explanation: { type: [string, "null"], minLength: 1, maxLength: 240 }
+        cta_label: { type: string, minLength: 1, maxLength: 60 }
+        destination_url: { type: string, format: uri, pattern: "^https://" }
+        fine_print: { type: [string, "null"], minLength: 1, maxLength: 1000 }
+        sponsor_disclosure: { type: string, minLength: 1, maxLength: 240 }
+        claim_duration_seconds:
+          description: Null hides the visible countdown while retaining finite entitlement expiry.
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 86400
+        starts_at: { $ref: "#/components/schemas/Timestamp" }
+        ends_at: { $ref: "#/components/schemas/NullableTimestamp" }
+        total_claim_limit: { type: [integer, "null"], minimum: 1 }
+        per_user_limit: { type: integer, minimum: 1, maximum: 100, default: 1 }
+        discovery_badge_label: { type: string, minLength: 1, maxLength: 60, default: Outly exclusive }
+        discovery_icon_key: { type: string, minLength: 1, maxLength: 80, default: outly-winged-o }
+    FounderPartnerCampaignResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [campaign]
+          properties:
+            campaign:
+              description: Intentionally excludes the external destination URL.
+              type: object
+              additionalProperties: false
+              required: [campaign_id, offer_ids, venue_count]
+              properties:
+                campaign_id: { $ref: "#/components/schemas/UUID" }
+                offer_ids:
+                  type: array
+                  items: { $ref: "#/components/schemas/UUID" }
+                venue_count: { type: integer, minimum: 1 }

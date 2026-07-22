@@ -22,7 +22,7 @@ final class DemoStoreTests: XCTestCase {
         super.tearDown()
     }
 
-    func testProfileValidationAndMinimumAge() {
+    func testProfileValidationAndProtectedOnboardingDetails() throws {
         let store = DemoStore(defaults: defaults, storageKey: "state")
 
         XCTAssertFalse(store.submitName())
@@ -31,10 +31,15 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(store.profile.firstName, "Liam")
         XCTAssertEqual(store.state.onboardingStage, .age)
 
-        store.setAge(99)
-        XCTAssertEqual(store.profile.age, 99)
-        store.setAge(-1)
-        XCTAssertEqual(store.profile.age, 19)
+        let dateOfBirth = try XCTUnwrap(
+            Calendar.current.date(byAdding: .year, value: -25, to: Date())
+        )
+        store.setDateOfBirth(dateOfBirth)
+        store.setGender(.other)
+
+        XCTAssertEqual(store.profile.dateOfBirth, dateOfBirth)
+        XCTAssertEqual(store.profile.currentAge, 25)
+        XCTAssertEqual(store.profile.gender, .other)
     }
 
     func testPlanCheckInAndTimedOfferPersistAcrossStores() {
@@ -120,6 +125,28 @@ final class DemoStoreTests: XCTestCase {
         )
     }
 
+    func testOpenEndedOfferHonoursServerEntitlementDeadline() {
+        let checkedInAt = Date(timeIntervalSince1970: 1_721_000_500)
+        let entitlementEndsAt = checkedInAt.addingTimeInterval(1_800)
+        let venue = VenueCatalog.venue(id: "paris-texas")
+        let state = DemoState(
+            onboardingStage: .main,
+            selectedVenueID: venue.id,
+            checkedInVenueID: venue.id,
+            checkedInAt: checkedInAt,
+            offerWindows: [venue.id: TimedOfferWindow(unlockedAt: checkedInAt, duration: nil)],
+            offerEntitlementEndsAt: [venue.id: entitlementEndsAt],
+            claimedOffers: [venue.id: venue.offer!]
+        )
+        let store = DemoStore(previewState: state)
+
+        XCTAssertTrue(store.isOfferActive(
+            at: venue.id,
+            now: entitlementEndsAt.addingTimeInterval(-1)
+        ))
+        XCTAssertFalse(store.isOfferActive(at: venue.id, now: entitlementEndsAt))
+    }
+
     func testLongClaimUsesOneEffectivePresenceEndAcrossSurfaces() {
         let checkedInAt = Date(timeIntervalSince1970: 1_721_000_500)
         let venue = VenueCatalog.venue(id: "lavelle")
@@ -158,7 +185,7 @@ final class DemoStoreTests: XCTestCase {
           "claim_duration_seconds": 1800,
           "presentation_kind": "partner",
           "sponsor_display_name": "Northline",
-          "sponsor_logo_storage_path": "partners/northline/logo.svg",
+          "sponsor_logo_storage_path": "partner-media/northline/logo.webp",
           "sponsor_disclosure": "Outly partner",
           "discovery_treatment": "partner_featured",
           "discovery_badge_label": "Partner offer",
@@ -175,6 +202,179 @@ final class DemoStoreTests: XCTestCase {
         XCTAssertEqual(offer.discoveryTreatment, .partnerFeatured)
         XCTAssertEqual(offer.sponsor?.displayName, "Northline")
         XCTAssertEqual(offer.destinationURL?.scheme, "https")
+    }
+
+    func testPartnerMediaURLIncludesBucketExactlyOnce() throws {
+        let projectURL = try XCTUnwrap(URL(string: "https://example.supabase.co"))
+        let logoURL = try XCTUnwrap(SupabasePublicStorageURL.make(
+            projectURL: projectURL,
+            bucket: "partner-media",
+            objectPath: "partner-media/northline/logo.webp"
+        ))
+
+        XCTAssertEqual(
+            logoURL.absoluteString,
+            "https://example.supabase.co/storage/v1/object/public/partner-media/northline/logo.webp"
+        )
+    }
+
+    func testPublicStorageURLValidatesAndEncodesApprovedPaths() throws {
+        let projectURL = try XCTUnwrap(URL(string: "https://example.supabase.co"))
+        let venueURL = try XCTUnwrap(SupabasePublicStorageURL.make(
+            projectURL: projectURL,
+            bucket: "venue-media",
+            objectPath: "d1000000-0000-4000-8000-000000000001/hero image.webp"
+        ))
+
+        XCTAssertEqual(
+            venueURL.absoluteString,
+            "https://example.supabase.co/storage/v1/object/public/venue-media/d1000000-0000-4000-8000-000000000001/hero%20image.webp"
+        )
+        XCTAssertNil(SupabasePublicStorageURL.make(
+            projectURL: projectURL,
+            bucket: "venue-media",
+            objectPath: "venue/../secret.webp"
+        ))
+        XCTAssertNil(SupabasePublicStorageURL.make(
+            projectURL: projectURL,
+            bucket: "venue-media",
+            objectPath: "https://attacker.invalid/image.webp"
+        ))
+    }
+
+    func testLiveStoreNeverFallsBackToFixtureVenueSlugs() {
+        let store = DemoStore(
+            defaults: defaults,
+            storageKey: "live-state",
+            allowsFixtures: false
+        )
+        let requestedID = "d1000000-0000-4000-8000-000000000099"
+        let placeholder = store.venue(id: requestedID)
+
+        XCTAssertTrue(store.venues.isEmpty)
+        XCTAssertFalse(store.hasVenue(id: requestedID))
+        XCTAssertEqual(placeholder.id, requestedID)
+        XCTAssertEqual(placeholder.name, "Venue unavailable")
+        XCTAssertFalse(placeholder.isAvailable)
+        XCTAssertNil(placeholder.offer)
+    }
+
+    func testBootstrapRestoresVerifiedCheckInWithoutAnActiveClaim() {
+        let store = DemoStore(
+            defaults: defaults,
+            storageKey: "live-state",
+            allowsFixtures: false
+        )
+        let venue = VenueCatalog.venue(id: "track-field")
+        let checkedInAt = Date()
+
+        store.applyConsumerBootstrap(ConsumerBootstrap(
+            profileFirstName: "Liam",
+            venues: [venue],
+            plan: nil,
+            checkedInID: "c1000000-0000-4000-8000-000000000001",
+            checkedInVenueID: venue.id,
+            checkedInAt: checkedInAt,
+            activeOfferVenueID: nil,
+            activeOffer: nil,
+            activeOfferWindow: nil,
+            offerEntitlementEndsAt: nil
+        ))
+
+        XCTAssertEqual(store.state.checkedInID, "c1000000-0000-4000-8000-000000000001")
+        XCTAssertEqual(store.activeCheckedInVenue(at: checkedInAt)?.id, venue.id)
+        XCTAssertNil(store.claimedOffer(at: venue.id))
+        XCTAssertNil(store.offerWindow(at: venue.id))
+    }
+
+    func testPartialVerifiedCheckInPersistsWithoutAnOffer() {
+        let store = DemoStore(defaults: defaults, storageKey: "state")
+        let checkedInAt = Date()
+        store.applyServerCheckIn(ServerCheckInResult(
+            checkInID: "c1000000-0000-4000-8000-000000000002",
+            venueID: "track-field",
+            checkedInAt: checkedInAt,
+            offer: nil,
+            offerWindow: nil,
+            entitlementEndsAt: nil
+        ))
+
+        XCTAssertEqual(store.state.checkedInID, "c1000000-0000-4000-8000-000000000002")
+        XCTAssertTrue(store.isCheckedIn(to: "track-field", at: checkedInAt))
+        XCTAssertNil(store.claimedOffer(at: "track-field"))
+    }
+
+    func testCheckInAttemptKeysSurviveTransportAndPartialClaimFailures() {
+        var keys = CheckInAttemptKeys()
+        let initial = keys
+
+        keys.prepareForRetry(after: URLError(.notConnectedToInternet))
+        XCTAssertEqual(keys, initial)
+
+        keys.prepareForRetry(after: SupabaseBackendError.server(
+            code: "INTERNAL_ERROR",
+            message: "The request could not be completed.",
+            verifiedCheckIn: nil
+        ))
+        XCTAssertEqual(keys, initial)
+
+        keys.prepareForRetry(after: SupabaseBackendError.server(
+            code: "OFFER_UNAVAILABLE",
+            message: "Offer unavailable",
+            verifiedCheckIn: ServerVerifiedCheckIn(
+                id: "c1000000-0000-4000-8000-000000000003",
+                venueID: "d1000000-0000-4000-8000-000000000001",
+                checkedInAt: Date()
+            )
+        ))
+        XCTAssertEqual(keys, initial)
+
+        keys.prepareForRetry(after: SupabaseBackendError.server(
+            code: "OUTSIDE_GEOFENCE",
+            message: "Outside venue",
+            verifiedCheckIn: nil
+        ))
+        XCTAssertNotEqual(keys, initial)
+    }
+
+    func testSupabaseConfigRejectsSecretKeysAndAllowsClientKeys() {
+        XCTAssertTrue(SupabaseClientKeyValidator.isAllowed("sb_publishable_example"))
+        XCTAssertTrue(SupabaseClientKeyValidator.isAllowed(
+            "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.signature"
+        ))
+        XCTAssertFalse(SupabaseClientKeyValidator.isAllowed("sb_secret_example"))
+        XCTAssertFalse(SupabaseClientKeyValidator.isAllowed(
+            "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
+        ))
+    }
+
+    func testDOBFormattingUsesSelectedCalendarComponents() {
+        XCTAssertEqual(
+            ConsumerDateOfBirthFormatter.string(from: DateComponents(
+                year: 2000,
+                month: 2,
+                day: 29
+            )),
+            "2000-02-29"
+        )
+        XCTAssertNil(ConsumerDateOfBirthFormatter.string(from: DateComponents(
+            year: 2001,
+            month: 2,
+            day: 29
+        )))
+    }
+
+    func testServerClockTranslationKeepsDurationsOnDeviceClockBasis() {
+        let serverNow = Date(timeIntervalSince1970: 1_700_000_000)
+        let deviceNow = serverNow.addingTimeInterval(420)
+        let translation = ServerClockTranslation(
+            serverTime: serverNow,
+            clientReferenceTime: deviceNow
+        )
+        let serverDeadline = serverNow.addingTimeInterval(600)
+
+        XCTAssertEqual(translation.clientDate(for: serverDeadline), deviceNow.addingTimeInterval(600))
+        XCTAssertEqual(translation.serverDate(for: deviceNow), serverNow)
     }
 
     func testResetReturnsToFirstLaunch() {
@@ -204,16 +404,16 @@ final class DemoStoreTests: XCTestCase {
     }
 
     func testDemoAuthenticationSupportsFacebook() async throws {
-        let userID = try await AppServices.demo.authenticate(.facebook)
+        let result = try await AppServices.demo.authenticate(.oauth(.facebook))
 
-        XCTAssertEqual(userID, "demo-facebook-user")
+        XCTAssertEqual(result.userID, "demo-facebook-user")
         XCTAssertEqual(AuthProvider.facebook.title, "Facebook")
     }
 
     func testDemoAuthenticationSupportsApple() async throws {
-        let userID = try await AppServices.demo.authenticate(.apple)
+        let result = try await AppServices.demo.authenticate(.oauth(.apple))
 
-        XCTAssertEqual(userID, "demo-apple-user")
+        XCTAssertEqual(result.userID, "demo-apple-user")
         XCTAssertEqual(AuthProvider.apple.title, "Apple")
     }
 

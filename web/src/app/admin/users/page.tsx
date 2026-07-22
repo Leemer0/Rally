@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { Check, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   AdminPageHeader,
   AdminSelect,
-  ConfirmationNotice,
-  DemoNotice,
   StatusBadge,
 } from "@/components/admin/admin-ui";
 import { Input } from "@/components/ui/input";
@@ -17,13 +15,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { users } from "@/lib/admin-demo-data";
+import {
+  formatAdminDate,
+  getFounderDashboardSnapshot,
+  maskEmail,
+  presentStatus,
+} from "@/lib/data/founder-dashboard";
 import { cn } from "@/lib/utils";
 
 type SearchParams = Promise<{
   q?: string;
   status?: string;
-  action?: string;
 }>;
 
 export default async function AdminUsersPage({
@@ -31,15 +33,19 @@ export default async function AdminUsersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const params = await searchParams;
+  const [params, snapshot] = await Promise.all([
+    searchParams,
+    getFounderDashboardSnapshot(),
+  ]);
   const query = params.q?.trim().toLowerCase() ?? "";
   const status = params.status ?? "all";
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = snapshot.consumers.filter((user) => {
     const matchesQuery =
       !query ||
-      user.id.toLowerCase().includes(query) ||
-      user.email.toLowerCase().includes(query);
-    const matchesStatus = status === "all" || user.status.toLowerCase() === status;
+      user.userId.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query) ||
+      user.firstName?.toLowerCase().includes(query);
+    const matchesStatus = status === "all" || user.accountStatus === status;
     return matchesQuery && matchesStatus;
   });
 
@@ -47,15 +53,8 @@ export default async function AdminUsersPage({
     <div className="space-y-7">
       <AdminPageHeader
         title="Users"
-        description="Search anonymous user records, review account state, and process deletion requests."
+        description="Search consumer account state without exposing dates of birth or location evidence."
       />
-
-      {params.action ? (
-        <ConfirmationNotice>
-          Prototype action “{params.action}” received. No user account was changed.
-        </ConfirmationNotice>
-      ) : null}
-      <DemoNotice message="Fictional, masked user data. Dates of birth are not displayed in this operational list." />
 
       <section className="overflow-hidden rounded-lg border border-white/10 bg-card">
         <form
@@ -71,122 +70,104 @@ export default async function AdminUsersPage({
               name="q"
               defaultValue={params.q}
               aria-label="Search users"
-              placeholder="Search user ID or masked email"
+              placeholder="Search user ID, name, or email"
               className="h-11 bg-white/[0.025] pl-9"
             />
           </div>
           <AdminSelect id="user-status" name="status" defaultValue={status}>
             <option value="all">All statuses</option>
             <option value="active">Active</option>
-            <option value="paused">Paused</option>
-            <option value="deletion requested">Deletion requested</option>
+            <option value="suspended">Suspended</option>
+            <option value="deletion_pending">Deletion pending</option>
+            <option value="deleted">Deleted</option>
           </AdminSelect>
           <button
             type="submit"
-            className={cn(buttonVariants({ variant: "secondary", size: "lg" }), "h-11 px-4")}
+            className={cn(
+              buttonVariants({ variant: "secondary", size: "lg" }),
+              "h-11 px-4",
+            )}
           >
             Apply filters
           </button>
           {(query || status !== "all") && (
             <Link
               href="/admin/users"
-              className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "h-11 px-3")}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "lg" }),
+                "h-11 px-3",
+              )}
             >
               Clear
             </Link>
           )}
         </form>
 
-        <form action="/admin/users" method="get">
-          {filteredUsers.length ? (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/8 hover:bg-transparent">
-                    <TableHead className="w-12 pl-5">
-                      <span className="sr-only">Select users</span>
-                    </TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>19+</TableHead>
-                    <TableHead className="hidden lg:table-cell">Gender</TableHead>
-                    <TableHead className="hidden sm:table-cell">Plans</TableHead>
-                    <TableHead className="hidden md:table-cell">Check-ins</TableHead>
-                    <TableHead className="hidden xl:table-cell">Last active</TableHead>
+        {filteredUsers.length ? (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/8 hover:bg-transparent">
+                  <TableHead className="pl-5 sm:pl-6">User</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="hidden sm:table-cell">Onboarding</TableHead>
+                  <TableHead className="hidden md:table-cell">First name</TableHead>
+                  <TableHead className="hidden lg:table-cell">Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.userId} className="border-white/8">
+                    <TableCell className="pl-5 sm:pl-6">
+                      <p className="font-mono text-xs font-medium text-white/82">
+                        {user.userId.slice(0, 8)}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-white/36">
+                        {maskEmail(user.email)}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={presentStatus(user.accountStatus)} />
+                    </TableCell>
+                    <TableCell className="hidden text-white/54 sm:table-cell">
+                      {presentStatus(user.onboardingStatus)}
+                    </TableCell>
+                    <TableCell className="hidden text-white/54 md:table-cell">
+                      {user.firstName || "Not provided"}
+                    </TableCell>
+                    <TableCell className="hidden text-white/50 lg:table-cell">
+                      {formatAdminDate(user.createdAt)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id} className="border-white/8">
-                      <TableCell className="pl-5">
-                        <label className="flex size-11 cursor-pointer items-center justify-center">
-                          <span className="sr-only">Select {user.id}</span>
-                          <input
-                            type="checkbox"
-                            name="selected"
-                            value={user.id}
-                            className="size-4 rounded border-white/18 accent-[var(--primary)]"
-                          />
-                        </label>
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-mono text-xs font-medium text-white/82">{user.id}</p>
-                        <p className="mt-0.5 text-[11px] text-white/36">{user.email}</p>
-                      </TableCell>
-                      <TableCell><StatusBadge status={user.status} /></TableCell>
-                      <TableCell>
-                        {user.is19Plus ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-white/64">
-                            <Check className="size-3.5 text-primary" /> Yes
-                          </span>
-                        ) : (
-                          <span className="text-xs text-white/48">No</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden text-white/54 lg:table-cell">{user.gender}</TableCell>
-                      <TableCell className="numeric hidden font-mono sm:table-cell">{user.plans}</TableCell>
-                      <TableCell className="numeric hidden font-mono md:table-cell">{user.checkIns}</TableCell>
-                      <TableCell className="hidden text-white/50 xl:table-cell">{user.lastActive}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <div className="flex flex-col gap-3 border-t border-white/8 p-4 sm:flex-row sm:items-center">
-                <AdminSelect id="user-action" name="action" defaultValue="pause">
-                  <option value="pause">Pause selected</option>
-                  <option value="restore">Restore selected</option>
-                  <option value="approve deletion">Approve deletion</option>
-                </AdminSelect>
-                <button
-                  type="submit"
-                  className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-11 border-white/12 px-4")}
-                >
-                  Apply action
-                </button>
-                <p className="text-[11px] text-white/34 sm:ml-auto">
-                  {filteredUsers.length} fictional records shown
-                </p>
-              </div>
-            </>
-          ) : (
-            <div className="px-5 py-16 text-center">
-              <p className="font-medium">No users match these filters</p>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-white/42">
-                Try another user ID, masked email, or account status.
-              </p>
-              <Link
-                href="/admin/users"
-                className={cn(buttonVariants({ variant: "outline" }), "mt-5 h-11 border-white/12")}
-              >
-                Reset filters
-              </Link>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="border-t border-white/8 px-5 py-3 text-[11px] text-white/34">
+              {filteredUsers.length} of {snapshot.consumers.length} recent consumer records shown
             </div>
-          )}
-        </form>
+          </>
+        ) : (
+          <div className="px-5 py-16 text-center">
+            <p className="font-medium">No users match these filters</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-white/42">
+              Try another user ID, name, masked email, or account status.
+            </p>
+            <Link
+              href="/admin/users"
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "mt-5 h-11 border-white/12",
+              )}
+            >
+              Reset filters
+            </Link>
+          </div>
+        )}
       </section>
 
       <p className="max-w-3xl text-[11px] leading-5 text-white/34">
-        The production workflow must require a second confirmation before account deletion and must remove associated personal data according to the final retention policy.
+        The operational list intentionally omits date of birth, gender, and precise
+        check-in evidence. Account deletion remains a separate audited workflow.
       </p>
     </div>
   );

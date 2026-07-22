@@ -17,6 +17,22 @@ enum AuthProvider: String, Codable, Sendable {
     }
 }
 
+enum UserGender: String, Codable, CaseIterable, Identifiable, Sendable {
+    case man
+    case woman
+    case other
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .man: "Man"
+        case .woman: "Woman"
+        case .other: "Another gender"
+        }
+    }
+}
+
 enum OnboardingStage: String, Codable, Sendable {
     case welcome
     case auth
@@ -37,11 +53,18 @@ struct AgeDistributionPoint: Codable, Hashable, Sendable {
 
 struct AgeDistribution: Codable, Hashable, Sendable {
     let points: [AgeDistributionPoint]
+    private let reportedAverageAge: Int?
+
+    init(points: [AgeDistributionPoint], averageAge: Int? = nil) {
+        self.points = points
+        reportedAverageAge = averageAge
+    }
 
     var hasEnoughData: Bool { !points.isEmpty }
 
     var averageAge: Int? {
         guard hasEnoughData else { return nil }
+        if let reportedAverageAge { return reportedAverageAge }
         let totalWeight = points.reduce(0) { $0 + max($1.intensity, 0) }
         guard totalWeight > 0 else { return nil }
 
@@ -55,9 +78,31 @@ struct AgeDistribution: Codable, Hashable, Sendable {
 struct GenderMix: Codable, Hashable, Sendable {
     let menPercentage: Int
     let womenPercentage: Int
+    let otherPercentage: Int
+
+    init(menPercentage: Int, womenPercentage: Int, otherPercentage: Int = 0) {
+        self.menPercentage = menPercentage
+        self.womenPercentage = womenPercentage
+        self.otherPercentage = otherPercentage
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case menPercentage
+        case womenPercentage
+        case otherPercentage
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        menPercentage = try container.decode(Int.self, forKey: .menPercentage)
+        womenPercentage = try container.decode(Int.self, forKey: .womenPercentage)
+        otherPercentage = try container.decodeIfPresent(Int.self, forKey: .otherPercentage) ?? 0
+    }
 
     var accessibilitySummary: String {
-        "Gender mix: \(menPercentage) percent men and \(womenPercentage) percent women"
+        let base = "Gender mix: \(menPercentage) percent men and \(womenPercentage) percent women"
+        guard otherPercentage > 0 else { return base }
+        return "\(base), and \(otherPercentage) percent another gender"
     }
 }
 
@@ -126,6 +171,58 @@ struct Venue: Identifiable, Codable, Hashable, Sendable {
     let longitude: Double
     let ageDistribution: AgeDistribution
     let genderMix: GenderMix
+    let markerURL: URL?
+    let heroURL: URL?
+    let isAvailable: Bool
+
+    init(
+        id: String,
+        name: String,
+        neighbourhood: String,
+        hours: String,
+        address: String,
+        goingCount: Int,
+        offer: VenueOffer?,
+        latitude: Double,
+        longitude: Double,
+        ageDistribution: AgeDistribution,
+        genderMix: GenderMix,
+        markerURL: URL? = nil,
+        heroURL: URL? = nil,
+        isAvailable: Bool = true
+    ) {
+        self.id = id
+        self.name = name
+        self.neighbourhood = neighbourhood
+        self.hours = hours
+        self.address = address
+        self.goingCount = goingCount
+        self.offer = offer
+        self.latitude = latitude
+        self.longitude = longitude
+        self.ageDistribution = ageDistribution
+        self.genderMix = genderMix
+        self.markerURL = markerURL
+        self.heroURL = heroURL
+        self.isAvailable = isAvailable
+    }
+
+    static func unavailable(id: String) -> Self {
+        Self(
+            id: id,
+            name: "Venue unavailable",
+            neighbourhood: "",
+            hours: "",
+            address: "",
+            goingCount: 0,
+            offer: nil,
+            latitude: 0,
+            longitude: 0,
+            ageDistribution: AgeDistribution(points: []),
+            genderMix: GenderMix(menPercentage: 0, womenPercentage: 0),
+            isAvailable: false
+        )
+    }
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -149,9 +246,6 @@ enum VenueCatalog {
     static let venues: [Venue] = ProcessInfo.processInfo.arguments.contains("--marketing-fixtures")
         ? marketingVenues
         : productionVenues
-    #else
-    static let venues: [Venue] = productionVenues
-    #endif
 
     private static let productionVenues: [Venue] = [
         Venue(
@@ -222,7 +316,6 @@ enum VenueCatalog {
         ),
     ]
 
-    #if DEBUG
     /// Anonymous fixtures for product screenshots. The stable IDs preserve routes,
     /// custom map marker art, and deterministic screenshot states without exposing
     /// real venue names or addresses in public marketing assets.
@@ -294,10 +387,8 @@ enum VenueCatalog {
             genderMix: GenderMix(menPercentage: 55, womenPercentage: 45)
         ),
     ]
-    #endif
-
     static func venue(id: String) -> Venue {
-        venues.first(where: { $0.id == id }) ?? venues[0]
+        venues.first(where: { $0.id == id }) ?? Venue.unavailable(id: id)
     }
 
     private static func standardOffer(
@@ -359,16 +450,40 @@ enum VenueCatalog {
         }
         return AgeDistribution(points: points)
     }
+    #else
+    // Release builds receive every venue from the approved consumer bootstrap.
+    // Keeping this collection empty prevents fixture names, coordinates, and
+    // slugs from becoming an accidental production fallback.
+    static let venues: [Venue] = []
+
+    static func venue(id: String) -> Venue {
+        Venue.unavailable(id: id)
+    }
+    #endif
 }
 
 struct UserProfile: Codable, Hashable, Sendable {
     var firstName = ""
     var age = 25
+    var dateOfBirth: Date?
+    var gender: UserGender?
+
+    var currentAge: Int {
+        guard let dateOfBirth else { return age }
+        return Calendar.current.dateComponents([.year], from: dateOfBirth, to: Date()).year ?? age
+    }
 }
 
 struct NightPlan: Codable, Hashable, Sendable {
+    var id: String?
     let venueID: String
     let dateLabel: String
+
+    init(id: String? = nil, venueID: String, dateLabel: String) {
+        self.id = id
+        self.venueID = venueID
+        self.dateLabel = dateLabel
+    }
 }
 
 struct TimedOfferWindow: Codable, Hashable, Sendable {
@@ -380,6 +495,11 @@ struct TimedOfferWindow: Codable, Hashable, Sendable {
     init(unlockedAt: Date, duration: TimeInterval? = Self.duration) {
         self.unlockedAt = unlockedAt
         expiresAt = duration.map(unlockedAt.addingTimeInterval)
+    }
+
+    init(unlockedAt: Date, expiresAt: Date?) {
+        self.unlockedAt = unlockedAt
+        self.expiresAt = expiresAt
     }
 
     func isActive(at date: Date) -> Bool {
@@ -411,10 +531,12 @@ struct DemoState: Codable, Hashable, Sendable {
     var onboardingStage: OnboardingStage = .welcome
     var profile = UserProfile()
     var plan: NightPlan?
-    var selectedVenueID = "track-field"
+    var selectedVenueID = ""
+    var checkedInID: String?
     var checkedInVenueID: String?
     var checkedInAt: Date?
     var offerWindows: [String: TimedOfferWindow] = [:]
+    var offerEntitlementEndsAt: [String: Date] = [:]
     var claimedOffers: [String: VenueOffer] = [:]
     var hapticsEnabled = true
 
@@ -422,10 +544,12 @@ struct DemoState: Codable, Hashable, Sendable {
         onboardingStage: OnboardingStage = .welcome,
         profile: UserProfile = UserProfile(),
         plan: NightPlan? = nil,
-        selectedVenueID: String = "track-field",
+        selectedVenueID: String = "",
+        checkedInID: String? = nil,
         checkedInVenueID: String? = nil,
         checkedInAt: Date? = nil,
         offerWindows: [String: TimedOfferWindow] = [:],
+        offerEntitlementEndsAt: [String: Date] = [:],
         claimedOffers: [String: VenueOffer] = [:],
         hapticsEnabled: Bool = true
     ) {
@@ -433,9 +557,11 @@ struct DemoState: Codable, Hashable, Sendable {
         self.profile = profile
         self.plan = plan
         self.selectedVenueID = selectedVenueID
+        self.checkedInID = checkedInID
         self.checkedInVenueID = checkedInVenueID
         self.checkedInAt = checkedInAt
         self.offerWindows = offerWindows
+        self.offerEntitlementEndsAt = offerEntitlementEndsAt
         self.claimedOffers = claimedOffers
         self.hapticsEnabled = hapticsEnabled
     }
@@ -445,9 +571,11 @@ struct DemoState: Codable, Hashable, Sendable {
         case profile
         case plan
         case selectedVenueID
+        case checkedInID
         case checkedInVenueID
         case checkedInAt
         case offerWindows
+        case offerEntitlementEndsAt
         case claimedOffers
         case hapticsEnabled
     }
@@ -457,10 +585,12 @@ struct DemoState: Codable, Hashable, Sendable {
         onboardingStage = try container.decodeIfPresent(OnboardingStage.self, forKey: .onboardingStage) ?? .welcome
         profile = try container.decodeIfPresent(UserProfile.self, forKey: .profile) ?? UserProfile()
         plan = try container.decodeIfPresent(NightPlan.self, forKey: .plan)
-        selectedVenueID = try container.decodeIfPresent(String.self, forKey: .selectedVenueID) ?? "track-field"
+        selectedVenueID = try container.decodeIfPresent(String.self, forKey: .selectedVenueID) ?? ""
+        checkedInID = try container.decodeIfPresent(String.self, forKey: .checkedInID)
         checkedInVenueID = try container.decodeIfPresent(String.self, forKey: .checkedInVenueID)
         checkedInAt = try container.decodeIfPresent(Date.self, forKey: .checkedInAt)
         offerWindows = try container.decodeIfPresent([String: TimedOfferWindow].self, forKey: .offerWindows) ?? [:]
+        offerEntitlementEndsAt = try container.decodeIfPresent([String: Date].self, forKey: .offerEntitlementEndsAt) ?? [:]
         claimedOffers = try container.decodeIfPresent([String: VenueOffer].self, forKey: .claimedOffers) ?? [:]
         hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
     }

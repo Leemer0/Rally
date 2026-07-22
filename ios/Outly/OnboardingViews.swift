@@ -15,7 +15,9 @@ struct OnboardingFlowView: View {
                 NameOnboardingView()
             case .age:
                 AgeOnboardingView()
-            case .gender, .interested:
+            case .gender:
+                GenderOnboardingView()
+            case .interested:
                 OnboardingCompleteView()
             case .complete:
                 OnboardingCompleteView()
@@ -199,6 +201,7 @@ private struct AuthenticationView: View {
     @State private var loadingProvider: AuthProvider?
     @State private var authenticationTask: Task<Void, Never>?
     @State private var errorMessage: String?
+    @State private var presentedEmailIntent: AuthIntent?
     @AccessibilityFocusState private var errorIsFocused: Bool
 
     var body: some View {
@@ -272,6 +275,13 @@ private struct AuthenticationView: View {
             authenticationTask?.cancel()
             authenticationTask = nil
         }
+        .sheet(item: $presentedEmailIntent) { intent in
+            EmailAuthenticationSheet(intent: intent) { credentials in
+                try await authenticate(.email(intent: intent, credentials: credentials))
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     @ViewBuilder
@@ -280,7 +290,11 @@ private struct AuthenticationView: View {
         @ViewBuilder icon: () -> Icon
     ) -> some View {
         Button {
-            beginAuthentication(with: provider)
+            if provider == .email, !services.isDemo {
+                presentedEmailIntent = store.authIntent
+            } else {
+                beginAuthentication(with: provider)
+            }
         } label: {
             ZStack {
                 Text("Continue with \(provider.title)")
@@ -316,10 +330,17 @@ private struct AuthenticationView: View {
 
     private func beginAuthentication(with provider: AuthProvider) {
         guard authenticationTask == nil else { return }
-        authenticationTask = Task { await authenticate(provider) }
+        authenticationTask = Task {
+            try? await authenticate(.oauth(provider))
+        }
     }
 
-    private func authenticate(_ provider: AuthProvider) async {
+    private func authenticate(_ request: AuthenticationRequest) async throws {
+        let provider: AuthProvider
+        switch request {
+        case let .oauth(value): provider = value
+        case .email: provider = .email
+        }
         loadingProvider = provider
         errorMessage = nil
         errorIsFocused = false
@@ -328,20 +349,127 @@ private struct AuthenticationView: View {
             authenticationTask = nil
         }
         do {
-            _ = try await services.authenticate(provider)
+            _ = try await services.authenticate(request)
             guard !Task.isCancelled else { return }
-            if store.authIntent == .signUp {
-                store.go(to: .name)
-            } else {
-                store.completeLogin()
+
+            if services.isDemo {
+                if store.authIntent == .signUp {
+                    store.go(to: .name)
+                } else {
+                    store.completeLogin()
+                }
+                return
+            }
+
+            do {
+                store.applyConsumerBootstrap(try await services.loadConsumerBootstrap())
+            } catch let error as SupabaseBackendError {
+                if case let .server(code, _, _) = error, code == "ONBOARDING_REQUIRED" {
+                    store.go(to: .name)
+                } else {
+                    throw error
+                }
             }
         } catch is CancellationError {
-            return
+            throw CancellationError()
         } catch {
-            let message = "Couldn’t sign you in. Try again."
+            let message = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn’t sign you in. Try again."
             errorMessage = message
             errorIsFocused = true
             UIAccessibility.post(notification: .announcement, argument: message)
+            throw error
+        }
+    }
+}
+
+private struct EmailAuthenticationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(OutlyTheme.self) private var theme
+    let intent: AuthIntent
+    let authenticate: (EmailAuthCredentials) async throws -> Void
+
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case email
+        case password
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.emailAddress)
+                        .focused($focusedField, equals: .email)
+
+                    SecureField("Password", text: $password)
+                        .textContentType(intent == .signUp ? .newPassword : .password)
+                        .focused($focusedField, equals: .password)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(theme.error)
+                    }
+                }
+
+                Section {
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        HStack {
+                            Text(intent == .signUp ? "Create account" : "Log in")
+                            Spacer()
+                            if isSubmitting { ProgressView() }
+                        }
+                    }
+                    .disabled(!canSubmit || isSubmitting)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(theme.background)
+            .navigationTitle(intent == .signUp ? "Sign up with email" : "Log in with email")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .onAppear { focusedField = .email }
+    }
+
+    private var canSubmit: Bool {
+        email.contains("@") && email.contains(".") && password.count >= 8
+    }
+
+    @MainActor
+    private func submit() async {
+        guard canSubmit, !isSubmitting else { return }
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+
+        do {
+            try await authenticate(EmailAuthCredentials(
+                email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                password: password
+            ))
+            dismiss()
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn’t continue with email."
         }
     }
 }
@@ -469,49 +597,194 @@ private struct NameOnboardingView: View {
 private struct AgeOnboardingView: View {
     @Environment(DemoStore.self) private var store
     @Environment(OutlyTheme.self) private var theme
-    @FocusState private var focused: Bool
-    @State private var age = ""
+    @State private var dateOfBirth = Calendar.current.date(
+        byAdding: .year,
+        value: -25,
+        to: Date()
+    ) ?? Date()
 
-    private var enteredAge: Int? {
-        Int(age)
+    private var latestEligibleBirthDate: Date {
+        Calendar.current.date(byAdding: .year, value: -19, to: Date()) ?? Date()
     }
 
-    private var canFinish: Bool {
-        guard let enteredAge else { return false }
-        return enteredAge >= 19
+    private var earliestBirthDate: Date {
+        Calendar.current.date(byAdding: .year, value: -120, to: Date()) ?? Date.distantPast
     }
 
     var body: some View {
         OnboardingShell(
             step: 2,
-            title: "How old are you?",
+            title: "What’s your date of birth?",
+            description: "You must be 19 or older. This can’t be changed later.",
             onBack: { store.go(to: .name) }
         ) {
-            TextField("Age", text: $age)
-                .keyboardType(.numberPad)
-                .textContentType(.none)
-                .focused($focused)
-                .padding(.horizontal, 15)
-                .frame(minHeight: OutlyMetrics.controlHeight)
-                .background(theme.surface, in: RoundedRectangle(cornerRadius: OutlyMetrics.buttonRadius, style: .continuous))
-                .overlay { RoundedRectangle(cornerRadius: OutlyMetrics.buttonRadius).stroke(theme.border, lineWidth: 1) }
-                .onChange(of: age) { _, newValue in
-                    age = newValue.filter(\.isNumber)
-                }
-                .accessibilityIdentifier("age-input")
+            DatePicker(
+                "Date of birth",
+                selection: $dateOfBirth,
+                in: earliestBirthDate ... latestEligibleBirthDate,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.wheel)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(
+                theme.surface,
+                in: RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: OutlyMetrics.surfaceRadius, style: .continuous)
+                    .stroke(theme.border, lineWidth: 1)
+            }
+            .accessibilityLabel("Date of birth")
+            .accessibilityIdentifier("date-of-birth")
         } footer: {
-            Button("Finish") {
-                guard let enteredAge else { return }
-                store.setAge(enteredAge)
-                store.go(to: .complete)
+            Button("Next") {
+                store.setDateOfBirth(dateOfBirth)
+                store.go(to: .gender)
             }
                 .buttonStyle(StandardActionButtonStyle())
-                .disabled(!canFinish)
                 .accessibilityIdentifier("onboarding-next")
         }
         .onAppear {
-            age = "\(store.profile.age)"
-            focused = true
+            if let savedDate = store.profile.dateOfBirth {
+                dateOfBirth = min(savedDate, latestEligibleBirthDate)
+            }
+        }
+    }
+}
+
+private struct GenderOnboardingView: View {
+    @Environment(DemoStore.self) private var store
+    @Environment(OutlyTheme.self) private var theme
+    @Environment(\.appServices) private var services
+    @State private var selection: UserGender?
+    @State private var hasAcceptedLegal = false
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        OnboardingShell(
+            step: 3,
+            totalSteps: 3,
+            title: "How do you identify?",
+            description: "Required for tonight’s anonymous crowd breakdown.",
+            onBack: { store.go(to: .age) }
+        ) {
+            VStack(spacing: 8) {
+                ForEach(UserGender.allCases) { gender in
+                    Button {
+                        selection = gender
+                        errorMessage = nil
+                    } label: {
+                        HStack {
+                            Text(gender.title)
+                            Spacer()
+                            Image(systemName: selection == gender ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(selection == gender ? theme.accent : theme.mutedText)
+                        }
+                        .frame(minHeight: 50)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection == gender ? .isSelected : [])
+                }
+
+                Divider()
+                    .overlay(theme.border)
+                    .padding(.vertical, 10)
+
+                legalConsent
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(theme.error)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
+                }
+            }
+        } footer: {
+            Button {
+                Task { await finish() }
+            } label: {
+                HStack {
+                    Text("Finish")
+                    if isSubmitting { ProgressView().tint(.black) }
+                }
+            }
+            .buttonStyle(StandardActionButtonStyle())
+            .disabled(selection == nil || !hasAcceptedLegal || isSubmitting)
+            .accessibilityIdentifier("onboarding-finish")
+        }
+        .onAppear { selection = store.profile.gender }
+    }
+
+    private var legalConsent: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Button {
+                hasAcceptedLegal.toggle()
+            } label: {
+                Image(systemName: hasAcceptedLegal ? "checkmark.square.fill" : "square")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(hasAcceptedLegal ? theme.accent : theme.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Agree to the Terms of Service and Privacy Policy")
+            .accessibilityValue(hasAcceptedLegal ? "Agreed" : "Not agreed")
+            .accessibilityIdentifier("legal-consent")
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("I agree to Outly’s")
+                    .font(.footnote)
+                    .foregroundStyle(theme.secondaryText)
+
+                HStack(spacing: 5) {
+                    Link("Terms of Service", destination: OutlyLegal.termsURL)
+                    Text("and")
+                        .foregroundStyle(theme.mutedText)
+                    Link("Privacy Policy", destination: OutlyLegal.privacyURL)
+                }
+                .font(.footnote.weight(.semibold))
+                .tint(theme.primaryText)
+            }
+            .padding(.top, 3)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    @MainActor
+    private func finish() async {
+        guard let selection,
+              let dateOfBirth = store.profile.dateOfBirth,
+              !isSubmitting
+        else { return }
+
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+
+        do {
+            store.setGender(selection)
+            let birthComponents = Calendar.autoupdatingCurrent.dateComponents(
+                [.year, .month, .day],
+                from: dateOfBirth
+            )
+            try await services.completeOnboarding(ConsumerOnboardingSubmission(
+                firstName: store.profile.firstName,
+                dateOfBirth: birthComponents,
+                gender: selection
+            ))
+            if !services.isDemo {
+                store.applyConsumerBootstrap(try await services.loadConsumerBootstrap())
+            }
+            store.go(to: .complete)
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn’t finish your account. Try again."
         }
     }
 }
@@ -548,6 +821,7 @@ private struct OnboardingCompleteView: View {
 private struct OnboardingShell<Content: View, Footer: View>: View {
     @Environment(OutlyTheme.self) private var theme
     let step: Int
+    let totalSteps: Int
     let title: String
     var description: String?
     let onBack: () -> Void
@@ -556,6 +830,7 @@ private struct OnboardingShell<Content: View, Footer: View>: View {
 
     init(
         step: Int,
+        totalSteps: Int = 3,
         title: String,
         description: String? = nil,
         onBack: @escaping () -> Void,
@@ -563,6 +838,7 @@ private struct OnboardingShell<Content: View, Footer: View>: View {
         @ViewBuilder footer: () -> Footer
     ) {
         self.step = step
+        self.totalSteps = totalSteps
         self.title = title
         self.description = description
         self.onBack = onBack
@@ -573,14 +849,14 @@ private struct OnboardingShell<Content: View, Footer: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             FlowHeader(onBack: onBack)
-            ProgressView(value: Double(step), total: 2)
+            ProgressView(value: Double(step), total: Double(totalSteps))
                 .tint(theme.accent)
                 .padding(.horizontal, 22)
-                .accessibilityLabel("Onboarding step \(step) of 2")
+                .accessibilityLabel("Onboarding step \(step) of \(totalSteps)")
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    SectionEyebrow(text: "Step \(step) of 2")
+                    SectionEyebrow(text: "Step \(step) of \(totalSteps)")
                     Text(title)
                         .font(.largeTitle.weight(.bold))
                         .padding(.top, 10)

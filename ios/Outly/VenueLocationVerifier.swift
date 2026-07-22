@@ -27,6 +27,15 @@ enum LocationVerificationError: LocalizedError, Equatable {
     }
 }
 
+struct VenueLocationEvidence: Codable, Hashable, Sendable {
+    let latitude: Double
+    let longitude: Double
+    let horizontalAccuracyMetres: Double
+    let capturedAt: Date
+    let accuracyAuthorization: String
+    let locationAuthorization: String
+}
+
 enum VenueGeofence {
     /// A small arrival radius that tolerates indoor GPS drift without covering a full neighbourhood.
     static let radius: CLLocationDistance = 75
@@ -82,10 +91,36 @@ final class VenueLocationVerifier: NSObject, @preconcurrency CLLocationManagerDe
     }
 
     func verify(_ venue: Venue) async throws -> Bool {
+        let location = try await validatedCurrentLocation()
+
+        return VenueGeofence.contains(location, venue: venue)
+    }
+
+    /// Captures precise, fresh evidence for the server. The device never decides
+    /// whether a check-in is valid in production; PostGIS and the venue's current
+    /// geofence remain authoritative.
+    func captureEvidence() async throws -> VenueLocationEvidence {
+        let location = try await validatedCurrentLocation()
+
+        return VenueLocationEvidence(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            horizontalAccuracyMetres: location.horizontalAccuracy,
+            capturedAt: location.timestamp,
+            accuracyAuthorization: accuracyAuthorizationValue,
+            locationAuthorization: locationAuthorizationValue
+        )
+    }
+
+    private func validatedCurrentLocation() async throws -> CLLocation {
         let location = try await requestCurrentLocation()
 
         guard VenueGeofence.isFresh(location) else {
             throw LocationVerificationError.staleLocation
+        }
+
+        guard manager.accuracyAuthorization == .fullAccuracy else {
+            throw LocationVerificationError.insufficientAccuracy
         }
 
         guard location.horizontalAccuracy >= 0,
@@ -94,7 +129,26 @@ final class VenueLocationVerifier: NSObject, @preconcurrency CLLocationManagerDe
             throw LocationVerificationError.insufficientAccuracy
         }
 
-        return VenueGeofence.contains(location, venue: venue)
+        return location
+    }
+
+    private var accuracyAuthorizationValue: String {
+        switch manager.accuracyAuthorization {
+        case .fullAccuracy: "full"
+        case .reducedAccuracy: "reduced"
+        @unknown default: "unknown"
+        }
+    }
+
+    private var locationAuthorizationValue: String {
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse: "when_in_use"
+        case .authorizedAlways: "always"
+        case .denied: "denied"
+        case .restricted: "restricted"
+        case .notDetermined: "not_determined"
+        @unknown default: "unknown"
+        }
     }
 
     private func requestCurrentLocation() async throws -> CLLocation {

@@ -1,61 +1,115 @@
-# Outly local Supabase development
+# Outly Supabase backend
 
-This directory contains the versioned local database definition and automated security tests. Nothing here deploys to the hosted Supabase project automatically.
+This directory is the versioned backend for the consumer iOS app, venue portal,
+and founder operations dashboard. Database migrations are the source of truth;
+the hosted project should be changed by pushing these migrations, not by
+manually creating production tables in Studio.
 
-## Domains currently implemented
+## Implemented MVP domains
 
-- PostGIS extension
-- Non-exposed `private` schema
-- Opt-in Data API grants
-- Consumer profile shell with own-row read policy
-- Protected DOB, gender, and server-calculated 19+ eligibility
-- Founder authorization allowlist
-- Versioned legal acceptances
-- Private APNs token storage
-- Resumable account-deletion requests
-- One-to-one MVP venue accounts
-- Venue self-registration and founder approval/publication state
-- Public venue profiles with PostGIS points and constrained geofence radii
-- Weekly hours, date-specific exceptions, and venue events
-- Reviewable critical profile changes
-- Moderated venue media with private-submission and public-approved buckets
-- Founder-only venue business details and review history
-- One active consumer plan per 4:00 AM-bounded nightlife date
-- Atomic plan creation, replacement, cancellation, and idempotent retries
-- Server-side PostGIS check-in verification using the prototype's 30-second, 75-metre-accuracy, and 1-metre tie rules
-- One verified check-in per consumer night for the MVP
-- Derived check-in evidence without retained latitude or longitude
-- Configurable rapid-attempt protection and versioned verification thresholds
-- One approved eligible offer per venue across standard and founder-managed partner campaigns
-- Versioned offer copy, schedules, capacity, premium discovery metadata, and approved HTTPS partner destinations
-- Location-verified offer claims with configurable positive countdowns or no countdown; every entitlement still has a server-enforced maximum lifetime
-- Private partner contacts, commercial campaign terms, venue targeting, and service-only eligibility/unlock operations
-- pgTAP structure, privilege, constraint, and RLS tests
+- Supabase Auth identity shells for consumers, one-login venue accounts, and a
+  private founder allowlist
+- Immutable consumer DOB and required gender with server-calculated 19+
+  eligibility
+- Venue self-registration, founder approval, business records, weekly hours,
+  map coordinates, and constrained geofences
+- One plan per consumer per 4:00 AM-bounded nightlife date
+- server-side PostGIS check-in decisions using fresh, precise iOS location
+  evidence; raw coordinates are not retained in the check-in record
+- standard and partner offers on one location-verified claim path
+- configurable claim countdowns from one second to 24 hours, plus open-ended
+  display offers with a server-enforced entitlement expiry
+- Pro-only partner campaigns, premium discovery metadata, HTTPS destinations,
+  approved public partner artwork, campaign capacity, and per-user limits
+- privacy-thresholded, coarsened crowd demographics and aggregate venue
+  analytics
+- Free/Pro entitlements with founder-managed MVP trials and subscription state
+- resumable account deletion, including durable completion when Auth is removed
+- authenticated Edge Functions for every consumer, venue, and founder action
+- an OpenAPI contract in `../contracts/openapi.yaml`
 
-Billing, aggregate analytics, and production Edge Function adapters belong in later migrations.
+The `private` schema is never exposed through the Data API. Privileged RPCs are
+service-role-only and are called by authenticated Edge Functions. Never put the
+Supabase secret/service key in the iOS app or browser JavaScript.
 
 ## Local verification
 
-Docker Desktop must be running.
+With Docker Desktop running:
 
 ```sh
 supabase start
 supabase db reset --local
 supabase test db
 supabase db lint --local --schema public,private --level warning --fail-on warning
+supabase functions serve
 ```
 
-Stop the local services when finished:
+The database suite covers structure, RLS, plans, location verification, offers,
+arbitrary countdowns, privacy rules, deletion, and primary API workflows.
 
-```sh
-supabase stop
-```
+## Hosted project setup
+
+1. Sign in and link this repository:
+
+   ```sh
+   supabase login
+   supabase link --project-ref YOUR_PROJECT_REF
+   ```
+
+2. Review the pending production migration, then deploy schema and functions:
+
+   ```sh
+   supabase db push --dry-run
+   supabase db push
+   supabase functions deploy
+   ```
+
+3. In Supabase Auth, set the site URL to `https://www.getoutly.app` and allow:
+
+   - `https://getoutly.app/auth/callback`
+   - `https://www.getoutly.app/auth/callback`
+   - `outly://auth-callback`
+   - the localhost callback while developing
+
+4. Configure Apple, Google, and Facebook providers with their production app
+   credentials. Configure production SMTP before requiring email confirmation.
+
+5. Add one founder after that person has an Auth user. Run this once in the SQL
+   editor with the real Auth UUID:
+
+   ```sql
+   insert into private.internal_admins (user_id, role, active, revoked_at)
+   values ('FOUNDER_AUTH_USER_UUID', 'founder_admin', true, null)
+   on conflict (user_id) do update
+   set role = excluded.role,
+       active = excluded.active,
+       revoked_at = null;
+   ```
+
+6. Add the project URL, publishable key, and server-only secret key to Vercel as
+   documented in `../web/.env.example`. The iOS app receives only the project URL
+   and publishable key.
+
+Approved partner logos belong in the public `partner-media` bucket with paths
+such as `partner-media/northline/logo.webp`. There is intentionally no direct
+browser upload policy; founders upload approved artwork through trusted server
+operations.
+
+## Not yet production-complete
+
+- Stripe Checkout and signed webhooks are not connected. Free/Pro status is
+  founder-managed for the MVP.
+- Core Location evidence is mathematically verified but still originates on the
+  client. Before attaching material cash value to partner rewards, add App
+  Attest, one-time challenges, fraud monitoring, and conservative claim caps.
+- Production legal copy/version identifiers, SMTP, OAuth credentials, APNs, and
+  retention periods still need final configuration.
 
 ## Migration rules
 
-- Create every migration with `supabase migration new <descriptive_name>`.
-- Keep grants, RLS enablement, and policies in the same migration as each exposed table.
-- Never add `private` to the Data API exposed schemas.
-- Do not use Auth user metadata for authorization.
-- Test a clean reset and the full pgTAP suite before linking or pushing remotely.
-- Hosted deployment requires a separate review and explicit approval.
+- Keep grants, RLS, constraints, and policies beside the object they protect.
+- Do not add `private` to the exposed Data API schemas.
+- Do not use mutable Auth metadata for authorization.
+- Create a new migration for deployed-schema changes; never rewrite a migration
+  that has already reached production.
+- Run a clean reset, the complete pgTAP suite, and database lint before pushing.

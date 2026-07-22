@@ -638,7 +638,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select distinct on (offer_record.venue_id)
+  select
     offer_record.id,
     version_record.id,
     schedule_record.id,
@@ -716,10 +716,10 @@ as $$
           and plan_record.venue_id = offer_record.venue_id
           and plan_record.nightlife_date = private.nightlife_date_for(p_at, venue_record.timezone)
           and plan_record.plan_status in ('planned', 'checked_in')
-          and (
-            schedule_record.plan_cutoff_at is null
-            or (plan_record.created_at at time zone venue_record.timezone)::time
-              <= schedule_record.plan_cutoff_at
+          and private.time_is_in_window(
+            (plan_record.created_at at time zone venue_record.timezone)::time,
+            null,
+            schedule_record.plan_cutoff_at
           )
       )
     )

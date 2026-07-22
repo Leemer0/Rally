@@ -1,49 +1,101 @@
-import { Download, Info } from "lucide-react";
-import {
-  checkInTimeDistribution,
-  visitorHistory,
-  visitorMix,
-  weeklyActivity,
-} from "@/lib/demo-data";
+import Link from "next/link";
+import { Download, Info, LockKeyhole } from "lucide-react";
+import { DashboardUnavailable } from "@/components/dashboard/dashboard-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { requireVenueSession } from "@/lib/auth/venue";
+import {
+  loadVenueDashboardSnapshot,
+  type VenueDashboardSnapshot,
+} from "@/lib/data/venue-dashboard";
 import { cn } from "@/lib/utils";
 
-const ages = [4, 8, 16, 29, 52, 74, 92, 76, 58, 38, 22, 12];
+export default async function AnalyticsPage() {
+  const session = await requireVenueSession();
+  const result = await loadVenueDashboardSnapshot(session.userId);
 
-const summary = [
-  { label: "Verified visitors", value: "126", note: "Unique people · 7 days" },
-  { label: "Returning visitors", value: "38", note: "30% repeat rate" },
-  { label: "Plan-to-check-in", value: "64%", note: "Matching planner cohort" },
-  { label: "Offers unlocked", value: "98", note: "Sample claims data" },
-];
+  if (!result.data) {
+    return (
+      <DashboardUnavailable
+        configuration={result.error === "configuration"}
+        title="We couldn’t load venue analytics."
+      />
+    );
+  }
 
-export default function AnalyticsPage() {
+  const snapshot = result.data;
+  const period = formatPeriod(snapshot.period.start, snapshot.period.end);
+  const returning = snapshot.metrics.returningVisitors;
+  const summary = [
+    {
+      label: "Verified visitors",
+      value: snapshot.metrics.verifiedCheckIns.toLocaleString("en-CA"),
+      note: `${snapshot.metrics.checkInAttempts.toLocaleString("en-CA")} check-in attempts`,
+    },
+    {
+      label: "Returning visitors",
+      value: returning === null ? "Pro" : returning.toLocaleString("en-CA"),
+      note:
+        returning === null
+          ? "Repeat-visitor insights not included"
+          : "Prior verified visit in the configured window",
+    },
+    {
+      label: "Plans",
+      value: snapshot.metrics.plans.toLocaleString("en-CA"),
+      note: "People who selected this venue",
+    },
+    {
+      label: "Offers unlocked",
+      value: snapshot.metrics.offersUnlocked.toLocaleString("en-CA"),
+      note: "After verified arrival",
+    },
+  ];
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.17em] text-primary">Analytics</p>
-          <h1 className="mt-2 text-3xl font-medium tracking-[-0.035em] sm:text-4xl">Attendance and return visits</h1>
-          <p className="mt-2 text-sm text-white/46">Aggregated venue trends. No individual guest profiles.</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.17em] text-primary">
+            Analytics
+          </p>
+          <h1 className="mt-2 text-3xl font-medium tracking-[-0.035em] sm:text-4xl">
+            Attendance and return visits
+          </h1>
+          <p className="mt-2 text-sm text-white/46">
+            Aggregated venue trends. No individual guest profiles.
+          </p>
         </div>
-        <a
-          href="/demo/venue-analytics.csv"
-          download
-          className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-11 border-white/12")}
+        <Button
+          variant="outline"
+          size="lg"
+          className="h-11 border-white/12"
+          disabled
+          title="Analytics export is not connected yet"
         >
-          <Download className="size-4" />Export
-        </a>
+          <Download className="size-4" />
+          Export not connected
+        </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-white/10 pb-5">
-        <Button variant="secondary" size="sm" className="h-8">7 days</Button>
-        <Button variant="ghost" size="sm" className="h-8" disabled>30 days</Button>
-        <Button variant="ghost" size="sm" className="h-8" disabled>90 days</Button>
-        <span className="ml-auto self-center text-[11px] text-white/32">Sample data · Jul 13–19</span>
+      <div className="flex flex-wrap items-center gap-3 border-b border-white/10 pb-5">
+        <Badge
+          variant="outline"
+          className="h-8 rounded-sm border-primary/25 px-3 text-primary"
+        >
+          Current period
+        </Badge>
+        <span className="text-[11px] text-white/34">{period}</span>
+        <span className="ml-auto text-[11px] text-white/30">
+          {snapshot.period.maximumHistoryDays}-day history entitlement ·{" "}
+          {presentStatus(snapshot.subscription.planCode)} plan
+        </span>
       </div>
 
-      <section className="grid overflow-hidden rounded-lg border border-white/10 bg-card sm:grid-cols-2 xl:grid-cols-4" aria-label="Analytics summary">
+      <section
+        className="grid overflow-hidden rounded-lg border border-white/10 bg-card sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Analytics summary"
+      >
         {summary.map((metric) => (
           <AnalyticMetric key={metric.label} {...metric} />
         ))}
@@ -53,9 +105,11 @@ export default function AnalyticsPage() {
         <section className="rounded-lg border border-white/10 bg-card p-5 sm:p-6">
           <div>
             <h2 className="font-medium">Plans and verified arrivals</h2>
-            <p className="mt-1 text-xs text-white/38">Unique people by nightlife date</p>
+            <p className="mt-1 text-xs text-white/38">
+              Unique people by nightlife date
+            </p>
           </div>
-          <AttendanceChart />
+          <AttendanceChart activity={snapshot.dailyActivity} />
           <div className="mt-5 flex gap-5 border-t border-white/8 pt-4 text-[11px] text-white/42">
             <Legend color="bg-white/26" label="Plans" />
             <Legend color="bg-primary" label="Verified check-ins" />
@@ -66,180 +120,430 @@ export default function AnalyticsPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="font-medium">Check-ins by time</h2>
-              <p className="mt-1 text-xs text-white/38">126 verified arrivals · venue-local time</p>
+              <p className="mt-1 text-xs text-white/38">
+                {snapshot.metrics.verifiedCheckIns.toLocaleString("en-CA")} verified
+                arrivals · venue-local time
+              </p>
             </div>
             <Info className="size-4 text-white/32" aria-hidden="true" />
           </div>
-          <div className="mt-8 space-y-4">
-            {checkInTimeDistribution.map((item) => (
-              <div key={item.label} className="grid grid-cols-[6.75rem_1fr_2rem] items-center gap-3">
-                <span className="text-xs text-white/48">{item.label}</span>
-                <span className="h-2 bg-white/6">
-                  <i className="block h-full bg-primary/72" style={{ width: `${(item.count / 37) * 100}%` }} />
-                </span>
-                <span className="numeric text-right text-xs text-white/54">{item.count}</span>
-              </div>
-            ))}
-          </div>
+          <HourlyCheckIns entries={snapshot.checkInsByHour} />
           <p className="mt-6 border-t border-white/8 pt-4 text-[10px] leading-4 text-white/30">
             Observed check-ins only. This is not a demand forecast.
           </p>
         </section>
       </div>
 
-      <section className="grid overflow-hidden rounded-lg border border-white/10 bg-card lg:grid-cols-[1.2fr_.8fr]">
-        <div className="border-b border-white/10 p-5 sm:p-6 lg:border-b-0 lg:border-r">
-          <div>
-            <h2 className="font-medium">First-time and returning visitors</h2>
-            <p className="mt-1 text-xs text-white/38">Five-week verified visitor history</p>
-          </div>
-          <VisitorHistoryChart />
-          <div className="mt-5 flex gap-5 border-t border-white/8 pt-4 text-[11px] text-white/42">
-            <Legend color="bg-white/26" label="First-time" />
-            <Legend color="bg-primary" label="Returning" />
-          </div>
-        </div>
-
-        <div className="p-5 sm:p-6">
-          <h2 className="font-medium">Visitor mix</h2>
-          <p className="mt-1 text-xs text-white/38">Current seven-day period</p>
-          <div className="mt-9 flex h-3 overflow-hidden bg-white/6" aria-label="70 percent first-time and 30 percent returning visitors">
-            <span className="w-[70%] bg-white/26" />
-            <span className="w-[30%] bg-primary" />
-          </div>
-          <div className="mt-7 space-y-5">
-            {visitorMix.map((item, index) => (
-              <div key={item.label} className="flex items-end justify-between gap-4">
-                <div className="flex items-center gap-2 text-sm text-white/54">
-                  <span className={index === 0 ? "size-2 bg-white/26" : "size-2 bg-primary"} />
-                  {item.label}
-                </div>
-                <div className="text-right">
-                  <span className="numeric text-xl font-medium">{item.value}</span>
-                  <span className="numeric ml-2 text-xs text-white/38">{item.percent}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-7 border-t border-white/8 pt-4 text-[10px] leading-4 text-white/30">
-            Returning means at least one earlier verified check-in at this venue within 90 days.
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-white/10 bg-card p-5 sm:p-6">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-          <div>
-            <h2 className="font-medium">Verified visitor profile</h2>
-            <p className="mt-1 text-xs text-white/38">Aggregated demographics for this seven-day period</p>
-          </div>
-          <Badge variant="outline" className="w-fit rounded-sm border-white/12 text-white/48">Sample cohort · 126 people</Badge>
-        </div>
-        <div className="mt-9 grid gap-10 lg:grid-cols-[1.25fr_.75fr]">
-          <div>
-            <div className="flex items-end justify-between">
-              <p className="text-sm text-white/46">Age distribution</p>
-              <p className="numeric text-3xl font-medium">27 <span className="text-xs font-normal text-white/38">average</span></p>
-            </div>
-            <div className="mt-6 flex h-32 items-end gap-1.5 border-b border-white/10" aria-label="Age distribution from 19 to 40 plus, average age 27">
-              {ages.map((height, index) => (
-                <span key={index} className={index === 6 ? "flex-1 bg-primary" : "flex-1 bg-white/23"} style={{ height: `${height}%` }} />
-              ))}
-            </div>
-            <div className="mt-2 flex justify-between font-mono text-[9px] text-white/30"><span>19</span><span>27</span><span>40+</span></div>
-          </div>
-          <div className="lg:border-l lg:border-white/10 lg:pl-10">
-            <p className="text-sm text-white/46">Gender distribution</p>
-            <div className="mt-7 flex h-2 gap-1" aria-label="44 percent men, 51 percent women, and 5 percent another gender">
-              <span className="w-[44%] bg-[#57a6ff]" />
-              <span className="w-[51%] bg-[#ff70b8]" />
-              <span className="w-[5%] bg-white/35" />
-            </div>
-            <div className="mt-4 space-y-3 text-xs">
-              <GenderRow color="bg-[#57a6ff]" label="Man" value="44%" />
-              <GenderRow color="bg-[#ff70b8]" label="Woman" value="51%" />
-              <GenderRow color="bg-white/35" label="Another gender" value="5%" />
-            </div>
-          </div>
-        </div>
+      <section className="grid overflow-hidden rounded-lg border border-white/10 bg-card lg:grid-cols-2">
+        <VisitorMix snapshot={snapshot} />
+        <Demographics snapshot={snapshot} />
       </section>
 
       <p className="flex max-w-3xl gap-2 text-[11px] leading-5 text-white/32">
         <Info className="mt-0.5 size-3.5 shrink-0" />
-        Demographics are hidden below the minimum cohort and never expose dates of birth, individual genders, names, or contact information.
+        Demographics are hidden below the minimum cohort and never expose dates
+        of birth, individual genders, names, contact information, or precise
+        location history.
       </p>
     </div>
   );
 }
 
-function AttendanceChart() {
-  const max = Math.max(...weeklyActivity.flatMap((item) => [item.plans, item.checkIns]));
+function AttendanceChart({
+  activity,
+}: {
+  activity: VenueDashboardSnapshot["dailyActivity"];
+}) {
+  const max = Math.max(
+    1,
+    ...activity.flatMap((item) => [item.plans, item.verifiedCheckIns]),
+  );
+
+  if (!activity.length) {
+    return <EmptyState copy="No plan or arrival activity in this period." />;
+  }
+
   return (
     <>
-      <div className="mt-10 grid h-64 grid-cols-7 items-end gap-3 sm:gap-6" aria-label="Plans and verified check-ins across seven nightlife dates">
-        {weeklyActivity.map((item) => (
-          <div key={item.day} className="flex h-full flex-1 flex-col justify-end gap-2">
-            <div className="mx-auto flex h-[82%] w-full max-w-12 items-end gap-1" title={`${item.day}: ${item.plans} plans and ${item.checkIns} verified check-ins`}>
-              <span className="w-1/2 bg-white/24" style={{ height: `${(item.plans / max) * 100}%` }} />
-              <span className="w-1/2 bg-primary" style={{ height: `${(item.checkIns / max) * 100}%` }} />
+      <div
+        className="mt-10 grid h-64 items-end gap-3 sm:gap-6"
+        style={{
+          gridTemplateColumns: `repeat(${activity.length}, minmax(0, 1fr))`,
+        }}
+        aria-label="Plans and verified check-ins by nightlife date"
+      >
+        {activity.map((item) => (
+          <div key={item.date} className="flex h-full flex-col justify-end gap-2">
+            <div
+              className="mx-auto flex h-[82%] w-full max-w-12 items-end gap-1"
+              title={`${item.date}: ${item.plans} plans and ${item.verifiedCheckIns} verified check-ins`}
+            >
+              <span
+                className="w-1/2 bg-white/24"
+                style={{ height: `${Math.max(2, (item.plans / max) * 100)}%` }}
+              />
+              <span
+                className="w-1/2 bg-primary"
+                style={{
+                  height: `${Math.max(2, (item.verifiedCheckIns / max) * 100)}%`,
+                }}
+              />
             </div>
-            <span className="text-center font-mono text-[9px] text-white/32">{item.day}</span>
+            <span className="text-center font-mono text-[9px] text-white/32">
+              {formatDay(item.date)}
+            </span>
           </div>
         ))}
       </div>
       <table className="sr-only">
         <caption>Plans and verified check-ins by nightlife date</caption>
-        <thead><tr><th>Day</th><th>Plans</th><th>Verified check-ins</th></tr></thead>
-        <tbody>{weeklyActivity.map((item) => <tr key={item.day}><td>{item.day}</td><td>{item.plans}</td><td>{item.checkIns}</td></tr>)}</tbody>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Plans</th>
+            <th>Verified check-ins</th>
+          </tr>
+        </thead>
+        <tbody>
+          {activity.map((item) => (
+            <tr key={item.date}>
+              <td>{item.date}</td>
+              <td>{item.plans}</td>
+              <td>{item.verifiedCheckIns}</td>
+            </tr>
+          ))}
+        </tbody>
       </table>
     </>
   );
 }
 
-function VisitorHistoryChart() {
-  const max = Math.max(...visitorHistory.map((item) => item.firstTime + item.returning));
+function HourlyCheckIns({
+  entries,
+}: {
+  entries: VenueDashboardSnapshot["checkInsByHour"];
+}) {
+  const sorted = [...entries].sort((a, b) => a.hour - b.hour);
+  const max = Math.max(1, ...sorted.map((item) => item.count));
+
+  if (!sorted.length) {
+    return <EmptyState copy="No verified arrivals in this period." compact />;
+  }
+
   return (
-    <>
-      <div className="mt-10 grid h-56 grid-cols-5 items-end gap-3 sm:gap-6" aria-label="First-time and returning visitors over five weeks">
-        {visitorHistory.map((item) => (
-          <div key={item.period} className="flex h-full flex-col justify-end gap-2">
-            <div className="mx-auto flex h-[82%] w-full max-w-14 flex-col justify-end" title={`${item.period}: ${item.firstTime} first-time and ${item.returning} returning visitors`}>
-              <span className="w-full bg-primary" style={{ height: `${(item.returning / max) * 100}%` }} />
-              <span className="w-full bg-white/24" style={{ height: `${(item.firstTime / max) * 100}%` }} />
-            </div>
-            <span className="text-center font-mono text-[9px] text-white/32">{item.period.replace("Jun ", "6/").replace("Jul ", "7/")}</span>
-          </div>
-        ))}
-      </div>
-      <table className="sr-only">
-        <caption>First-time and returning visitors by week</caption>
-        <thead><tr><th>Week</th><th>First-time</th><th>Returning</th></tr></thead>
-        <tbody>{visitorHistory.map((item) => <tr key={item.period}><td>{item.period}</td><td>{item.firstTime}</td><td>{item.returning}</td></tr>)}</tbody>
-      </table>
-    </>
+    <div className="mt-8 space-y-4">
+      {sorted.map((item) => (
+        <div
+          key={item.hour}
+          className="grid grid-cols-[4rem_1fr_2.5rem] items-center gap-3"
+        >
+          <span className="text-xs text-white/48">{formatHour(item.hour)}</span>
+          <span className="h-2 bg-white/6">
+            <i
+              className="block h-full bg-primary/72"
+              style={{ width: `${(item.count / max) * 100}%` }}
+            />
+          </span>
+          <span className="numeric text-right text-xs text-white/54">
+            {item.count}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function AnalyticMetric({ label, value, note }: { label: string; value: string; note: string }) {
+function VisitorMix({ snapshot }: { snapshot: VenueDashboardSnapshot }) {
+  const returning = snapshot.metrics.returningVisitors;
+  const total = snapshot.metrics.verifiedCheckIns;
+
+  if (returning === null) {
+    return (
+      <div className="border-b border-white/10 p-5 sm:p-6 lg:border-b-0 lg:border-r">
+        <LockedInsight
+          title="First-time and returning visitors"
+          copy="Privacy-safe repeat-visitor insights are not included in your current plan."
+        />
+      </div>
+    );
+  }
+
+  const returningCount = Math.min(total, returning);
+  const firstTime = Math.max(0, total - returningCount);
+  const returningPercent = total
+    ? Math.round((returningCount / total) * 100)
+    : 0;
+  const firstTimePercent = 100 - returningPercent;
+
+  return (
+    <div className="border-b border-white/10 p-5 sm:p-6 lg:border-b-0 lg:border-r">
+      <h2 className="font-medium">Visitor mix</h2>
+      <p className="mt-1 text-xs text-white/38">Verified visits in this period</p>
+      <div
+        className="mt-9 flex h-3 overflow-hidden bg-white/6"
+        aria-label={`${firstTimePercent} percent first-time and ${returningPercent} percent returning visitors`}
+      >
+        <span
+          className="bg-white/26"
+          style={{ width: `${firstTimePercent}%` }}
+        />
+        <span className="bg-primary" style={{ width: `${returningPercent}%` }} />
+      </div>
+      <div className="mt-7 space-y-5">
+        <VisitorRow
+          label="First-time"
+          value={firstTime}
+          percent={firstTimePercent}
+        />
+        <VisitorRow
+          label="Returning"
+          value={returningCount}
+          percent={returningPercent}
+          accent
+        />
+      </div>
+      <p className="mt-7 border-t border-white/8 pt-4 text-[10px] leading-4 text-white/30">
+        Returning means at least one earlier verified visit within the configured
+        privacy-safe window.
+      </p>
+    </div>
+  );
+}
+
+function Demographics({ snapshot }: { snapshot: VenueDashboardSnapshot }) {
+  const demographics = snapshot.demographics;
+
+  if (!demographics) {
+    return (
+      <div className="p-5 sm:p-6">
+        <LockedInsight
+          title="Verified visitor profile"
+          copy={
+            snapshot.subscription.entitlements.advancedDemographics
+              ? "This period has not reached the minimum privacy cohort, so demographics remain hidden."
+              : "Aggregated age and gender insights are not included in your current plan."
+          }
+          privacy={snapshot.subscription.entitlements.advancedDemographics}
+        />
+      </div>
+    );
+  }
+
+  const gender = demographics.gender;
+
+  return (
+    <div className="p-5 sm:p-6">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div>
+          <h2 className="font-medium">Verified visitor profile</h2>
+          <p className="mt-1 text-xs text-white/38">
+            Aggregated for the current period
+          </p>
+        </div>
+        <Badge
+          variant="outline"
+          className="w-fit rounded-sm border-white/12 text-white/48"
+        >
+          {demographics.cohortSize.toLocaleString("en-CA")} people
+        </Badge>
+      </div>
+
+      <div className="mt-9 grid gap-8 sm:grid-cols-[.65fr_1.35fr] sm:items-end">
+        <div>
+          <p className="text-xs text-white/40">Average age</p>
+          <p className="numeric mt-3 text-5xl font-medium tracking-[-0.05em]">
+            {demographics.averageAge}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-white/40">Gender distribution</p>
+          <div
+            className="mt-5 flex h-2 gap-1"
+            aria-label={`${gender.man} percent men, ${gender.woman} percent women, and ${gender.other} percent another gender`}
+          >
+            <span className="bg-[#57a6ff]" style={{ width: `${gender.man}%` }} />
+            <span
+              className="bg-[#ff70b8]"
+              style={{ width: `${gender.woman}%` }}
+            />
+            <span className="bg-white/35" style={{ width: `${gender.other}%` }} />
+          </div>
+          <div className="mt-4 space-y-3 text-xs">
+            <GenderRow color="bg-[#57a6ff]" label="Man" value={gender.man} />
+            <GenderRow
+              color="bg-[#ff70b8]"
+              label="Woman"
+              value={gender.woman}
+            />
+            <GenderRow
+              color="bg-white/35"
+              label="Another gender"
+              value={gender.other}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LockedInsight({
+  title,
+  copy,
+  privacy = false,
+}: {
+  title: string;
+  copy: string;
+  privacy?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <LockKeyhole className="size-4 text-white/32" />
+        <h2 className="font-medium">{title}</h2>
+      </div>
+      <p className="mt-4 max-w-md text-sm leading-6 text-white/42">{copy}</p>
+      {privacy ? (
+        <p className="mt-5 text-[11px] text-white/30">Privacy threshold active</p>
+      ) : (
+        <Link
+          href="/dashboard/billing"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "mt-6 border-white/12",
+          )}
+        >
+          View plan
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function AnalyticMetric({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note: string;
+}) {
   return (
     <div className="border-b border-white/10 p-5 odd:border-r sm:nth-[3]:border-b-0 sm:nth-[4]:border-b-0 xl:border-b-0 xl:border-r xl:last:border-r-0">
       <p className="text-xs text-white/42">{label}</p>
-      <p className="numeric mt-4 text-4xl font-medium tracking-[-0.05em]">{value}</p>
+      <p className="numeric mt-4 text-4xl font-medium tracking-[-0.05em]">
+        {value}
+      </p>
       <p className="mt-2 text-[11px] text-white/32">{note}</p>
     </div>
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return <span className="flex items-center gap-2"><i className={`size-2 ${color}`} />{label}</span>;
+function VisitorRow({
+  label,
+  value,
+  percent,
+  accent = false,
+}: {
+  label: string;
+  value: number;
+  percent: number;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-4">
+      <div className="flex items-center gap-2 text-sm text-white/54">
+        <span className={accent ? "size-2 bg-primary" : "size-2 bg-white/26"} />
+        {label}
+      </div>
+      <div className="text-right">
+        <span className="numeric text-xl font-medium">{value}</span>
+        <span className="numeric ml-2 text-xs text-white/38">{percent}%</span>
+      </div>
+    </div>
+  );
 }
 
-function GenderRow({ color, label, value }: { color: string; label: string; value: string }) {
+function GenderRow({
+  color,
+  label,
+  value,
+}: {
+  color: string;
+  label: string;
+  value: number;
+}) {
   return (
     <div className="flex items-center">
       <span className={`mr-2 size-2 ${color}`} />
       <span className="text-white/50">{label}</span>
-      <span className="numeric ml-auto">{value}</span>
+      <span className="numeric ml-auto">{value}%</span>
     </div>
+  );
+}
+
+function EmptyState({
+  copy,
+  compact = false,
+}: {
+  copy: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "mt-8 flex items-center justify-center border-y border-white/8 text-xs text-white/32",
+        compact ? "h-40" : "h-64",
+      )}
+    >
+      {copy}
+    </div>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-2">
+      <i className={`size-2 ${color}`} />
+      {label}
+    </span>
+  );
+}
+
+function formatDay(value: string) {
+  const date = new Date(value.includes("T") ? value : `${value}T12:00:00Z`);
+  if (Number.isNaN(date.valueOf())) return value;
+
+  return new Intl.DateTimeFormat("en-CA", {
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function formatPeriod(start: string, end: string) {
+  const startDate = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  if (Number.isNaN(startDate.valueOf()) || Number.isNaN(endDate.valueOf())) {
+    return "Current reporting period";
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return `${formatter.format(startDate)}–${formatter.format(endDate)}`;
+}
+
+function formatHour(hour: number) {
+  const normalized = ((hour % 24) + 24) % 24;
+  const display = normalized % 12 || 12;
+  return `${display}:00 ${normalized < 12 ? "AM" : "PM"}`;
+}
+
+function presentStatus(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) =>
+    letter.toUpperCase(),
   );
 }

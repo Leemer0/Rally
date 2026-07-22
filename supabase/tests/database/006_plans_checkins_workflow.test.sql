@@ -1,5 +1,8 @@
 begin;
 
+set local role postgres;
+set local search_path = public, extensions, pgtap;
+
 create extension if not exists pgtap with schema extensions;
 
 select plan(41);
@@ -431,7 +434,7 @@ select is(
   'the sixth attempt inside five minutes is rate limited'
 );
 
-reset role;
+set local role postgres;
 
 insert into public.venues (
   id, slug, display_name, registration_status, publication_status,
@@ -474,7 +477,7 @@ select is(
   'an effectively tied venue location cannot verify either venue'
 );
 
-reset role;
+set local role postgres;
 select set_config(
   'request.jwt.claims',
   '{"sub":"11111111-aaaa-4111-8111-111111111111","role":"authenticated"}',
@@ -541,7 +544,7 @@ select throws_ok(
   'consumer cannot read fraud and verification thresholds'
 );
 
-reset role;
+set local role postgres;
 
 select throws_ok(
   $$

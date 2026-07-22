@@ -7,6 +7,21 @@ private enum CheckInPhase: Equatable {
     case failed
 }
 
+struct CheckInAttemptKeys: Equatable, Sendable {
+    private(set) var checkIn = UUID()
+    private(set) var claim = UUID()
+
+    mutating func prepareForRetry(after error: Error) {
+        guard let backendError = error as? SupabaseBackendError,
+              backendError.shouldRotateCheckInAttempt
+        else {
+            return
+        }
+        checkIn = UUID()
+        claim = UUID()
+    }
+}
+
 /// Check-in is one continuous surface: selecting Check in starts verification,
 /// a restrained location pulse resolves in place, and success proceeds directly
 /// to the offer. Permission and geofence failures remain inline for recovery.
@@ -24,9 +39,11 @@ struct CheckInIntroView: View {
     @State private var verificationTask: Task<Void, Never>?
     @State private var errorMessage: String?
     @State private var locationError: LocationVerificationError?
+    @State private var attemptKeys = CheckInAttemptKeys()
+    @State private var checkInWasVerified = false
     @State private var shouldAutoVerify: Bool
 
-    private var venue: Venue { VenueCatalog.venue(id: venueID) }
+    private var venue: Venue { store.venue(id: venueID) }
 
     init(venueID: String) {
         self.venueID = venueID
@@ -107,9 +124,9 @@ struct CheckInIntroView: View {
                             Spacer(minLength: 64)
 
                             VStack(spacing: 20) {
-                                Image(systemName: "location.slash")
+                                Image(systemName: checkInWasVerified ? "checkmark.circle.fill" : "location.slash")
                                     .font(.title2.weight(.medium))
-                                    .foregroundStyle(theme.mutedText)
+                                    .foregroundStyle(checkInWasVerified ? theme.accent : theme.mutedText)
                                     .frame(width: 44, height: 44)
                                     .accessibilityHidden(true)
 
@@ -154,10 +171,21 @@ struct CheckInIntroView: View {
             }
 
             BottomActionBar {
-                Button("Try again", action: beginLocationVerification)
-                    .buttonStyle(MetalSilverActionButtonStyle())
-                    .accessibilityHint("Checks your current location again")
-                    .accessibilityIdentifier("retry-checkin")
+                if checkInWasVerified {
+                    VStack(spacing: 4) {
+                        Button("Try offer again", action: beginLocationVerification)
+                            .buttonStyle(MetalSilverActionButtonStyle())
+                            .accessibilityHint("Retries the offer without creating another check-in")
+                            .accessibilityIdentifier("retry-offer")
+                        Button("Back to Explore") { router.returnToExplore() }
+                            .buttonStyle(GhostButtonStyle())
+                    }
+                } else {
+                    Button("Try again", action: beginLocationVerification)
+                        .buttonStyle(MetalSilverActionButtonStyle())
+                        .accessibilityHint("Checks your current location again")
+                        .accessibilityIdentifier("retry-checkin")
+                }
             }
         }
     }
@@ -206,7 +234,8 @@ struct CheckInIntroView: View {
     }
 
     private var failureTitle: String {
-        switch locationError {
+        if checkInWasVerified { return "You’re checked in" }
+        return switch locationError {
         case .permissionDenied:
             "Location access is off"
         case .servicesDisabled:
@@ -222,6 +251,7 @@ struct CheckInIntroView: View {
         switch phase {
         case .locating: "Confirming location at \(venue.name)"
         case .confirmed: "Location confirmed at \(venue.name)"
+        case .failed where checkInWasVerified: "Checked in at \(venue.name), offer unavailable"
         case .failed: "Check-in failed at \(venue.name)"
         }
     }
@@ -244,22 +274,31 @@ struct CheckInIntroView: View {
         guard verificationTask == nil else { return }
         errorMessage = nil
         locationError = nil
+        checkInWasVerified = false
         phase = .locating
         verificationTask = Task { await verifyLocation() }
     }
 
     private func verifyLocation() async {
         do {
+            guard venue.isAvailable else {
+                throw SupabaseBackendError.server(
+                    code: "VENUE_UNAVAILABLE",
+                    message: "This venue is no longer available tonight.",
+                    verifiedCheckIn: nil
+                )
+            }
             async let minimumPresentation: Void = Task.sleep(for: .milliseconds(1_300))
-            let verified = try await services.verifyApproximateLocation(venue)
+            let evidence = try await services.captureLocationEvidence()
+            let result = try await services.checkIn(
+                venue,
+                store.plan?.venueID == venueID ? store.plan?.id : nil,
+                evidence,
+                attemptKeys.checkIn,
+                attemptKeys.claim
+            )
             try await minimumPresentation
             guard !Task.isCancelled else { return }
-
-            guard verified else {
-                verificationTask = nil
-                presentFailure("Move closer and try again.")
-                return
-            }
 
             phase = .confirmed
             UIAccessibility.post(
@@ -270,10 +309,9 @@ struct CheckInIntroView: View {
             try await Task.sleep(for: .milliseconds(reduceMotion ? 300 : 650))
             guard !Task.isCancelled else { return }
 
-            // The stored check-in, offer countdown, map card, and Live Activity
-            // all share this exact timestamp.
-            let checkedInAt = Date()
-            store.checkIn(to: venueID, now: checkedInAt)
+            // The backend timestamp drives the offer, map card, and Live Activity.
+            let checkedInAt = result.checkedInAt
+            store.applyServerCheckIn(result)
             let offerWindow = store.offerWindow(at: venueID)
             let claimedOffer = store.claimedOffer(at: venueID)
             let effectiveOfferEnd = store.offerPresentationEndsAt(venueID)
@@ -302,6 +340,22 @@ struct CheckInIntroView: View {
             verificationTask = nil
         } catch {
             verificationTask = nil
+            if let backendError = error as? SupabaseBackendError,
+               let verifiedCheckIn = backendError.verifiedCheckIn
+            {
+                store.applyServerCheckIn(ServerCheckInResult(
+                    checkInID: verifiedCheckIn.id,
+                    venueID: verifiedCheckIn.venueID,
+                    checkedInAt: verifiedCheckIn.checkedInAt,
+                    offer: nil,
+                    offerWindow: nil,
+                    entitlementEndsAt: nil
+                ))
+                presentVerifiedCheckInOfferFailure()
+                return
+            }
+
+            attemptKeys.prepareForRetry(after: error)
             let resolvedError = error as? LocationVerificationError
             presentFailure(
                 failureMessage(for: resolvedError)
@@ -310,6 +364,18 @@ struct CheckInIntroView: View {
                 locationError: resolvedError
             )
         }
+    }
+
+    private func presentVerifiedCheckInOfferFailure() {
+        phase = .failed
+        checkInWasVerified = true
+        locationError = nil
+        errorMessage = "Your location was confirmed, but the offer didn’t load."
+        HapticManager.shared.success(enabled: store.state.hapticsEnabled)
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: "You’re checked in at \(venue.name). Your offer didn’t load."
+        )
     }
 
     private var shouldOfferSettingsRecovery: Bool {

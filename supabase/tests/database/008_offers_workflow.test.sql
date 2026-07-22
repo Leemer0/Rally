@@ -1,5 +1,8 @@
 begin;
 
+set local role postgres;
+set local search_path = public, extensions, pgtap;
+
 create extension if not exists pgtap with schema extensions;
 
 select plan(37);
@@ -94,6 +97,10 @@ values (
   'active'
 );
 
+update private.venue_subscriptions
+set plan_code = 'pro', stripe_status = 'active'
+where venue_id = 'b1000000-0000-4000-8000-000000000001';
+
 insert into private.partners (
   id, brand_name, legal_name, status, website_url,
   approved_logo_storage_path, approved_logo_alt_text
@@ -104,7 +111,7 @@ values (
   'Northline Mobility Inc.',
   'active',
   'https://example.test/northline',
-  'partners/northline/logo.svg',
+  'partner-media/northline/logo.webp',
   'Northline logo'
 );
 
@@ -175,17 +182,17 @@ values
     1,
     'partner',
     'Northline',
-    'partners/northline/logo.svg',
+    'partner-media/northline/logo.webp',
     'Northline logo',
     'Outly partner',
     'partner_featured',
     'Ride home offer',
     'northline-mark',
-    'approved',
+    'pending_review',
     'a1000000-0000-4000-8000-000000000001',
-    'a1000000-0000-4000-8000-000000000001',
+    null,
     now(),
-    now()
+    null
   ),
   (
     'e2000000-0000-4000-8000-000000000002',
@@ -201,17 +208,17 @@ values
     1,
     'partner',
     'Northline',
-    'partners/northline/logo.svg',
+    'partner-media/northline/logo.webp',
     'Northline logo',
     'Outly partner',
     'partner_featured',
     'Ride home offer',
     'northline-mark',
-    'approved',
+    'pending_review',
     'a1000000-0000-4000-8000-000000000001',
-    'a1000000-0000-4000-8000-000000000001',
+    null,
     now(),
-    now()
+    null
   );
 
 insert into public.offer_versions (
@@ -239,19 +246,12 @@ values (
   'outly_exclusive',
   'Outly exclusive',
   'outly-winged-o',
-  'approved',
+  'pending_review',
   'a1000000-0000-4000-8000-000000000001',
-  'a1000000-0000-4000-8000-000000000001',
+  null,
   now(),
-  now()
+  null
 );
-
-update public.offers
-set current_approved_version_id = case id
-  when 'd1000000-0000-4000-8000-000000000001' then 'e1000000-0000-4000-8000-000000000001'::uuid
-  when 'd2000000-0000-4000-8000-000000000002' then 'e2000000-0000-4000-8000-000000000002'::uuid
-  when 'd3000000-0000-4000-8000-000000000003' then 'e3000000-0000-4000-8000-000000000003'::uuid
-end;
 
 insert into public.offer_schedules (
   id, offer_version_id, nightlife_start_date, nightlife_end_date
@@ -260,21 +260,39 @@ values
   (
     'f1000000-0000-4000-8000-000000000001',
     'e1000000-0000-4000-8000-000000000001',
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto') - 1,
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto') + 1
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date - 1,
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date + 1
   ),
   (
     'f2000000-0000-4000-8000-000000000002',
     'e2000000-0000-4000-8000-000000000002',
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto') - 1,
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto') + 1
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date - 1,
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date + 1
   ),
   (
     'f3000000-0000-4000-8000-000000000003',
     'e3000000-0000-4000-8000-000000000003',
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto') - 1,
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto') + 1
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date - 1,
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date + 1
   );
+
+update public.offer_versions
+set
+  approval_state = 'approved',
+  approved_by = 'a1000000-0000-4000-8000-000000000001',
+  approved_at = now()
+where id in (
+  'e1000000-0000-4000-8000-000000000001',
+  'e2000000-0000-4000-8000-000000000002',
+  'e3000000-0000-4000-8000-000000000003'
+);
+
+update public.offers
+set current_approved_version_id = case id
+  when 'd1000000-0000-4000-8000-000000000001' then 'e1000000-0000-4000-8000-000000000001'::uuid
+  when 'd2000000-0000-4000-8000-000000000002' then 'e2000000-0000-4000-8000-000000000002'::uuid
+  when 'd3000000-0000-4000-8000-000000000003' then 'e3000000-0000-4000-8000-000000000003'::uuid
+end;
 
 insert into private.offer_campaign_links (offer_id, campaign_id)
 values
@@ -295,7 +313,7 @@ values
     '91000000-0000-4000-8000-000000000001',
     'a2000000-0000-4000-8000-000000000002',
     'b1000000-0000-4000-8000-000000000001',
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto'),
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date,
     '92000000-0000-4000-8000-000000000001',
     clock_timestamp() - interval '61 seconds',
     clock_timestamp() - interval '60 seconds',
@@ -307,7 +325,7 @@ values
     '91000000-0000-4000-8000-000000000002',
     'a3000000-0000-4000-8000-000000000003',
     'b2000000-0000-4000-8000-000000000002',
-    private.nightlife_date_for(clock_timestamp(), 'America/Toronto'),
+    ((clock_timestamp() at time zone 'America/Toronto') - interval '4 hours')::date,
     '92000000-0000-4000-8000-000000000002',
     clock_timestamp() - interval '61 seconds',
     clock_timestamp() - interval '60 seconds',
@@ -319,7 +337,7 @@ values
     '91000000-0000-4000-8000-000000000003',
     'a4000000-0000-4000-8000-000000000004',
     'b2000000-0000-4000-8000-000000000002',
-    private.nightlife_date_for(clock_timestamp() - interval '20 minutes', 'America/Toronto'),
+    (((clock_timestamp() - interval '20 minutes') at time zone 'America/Toronto') - interval '4 hours')::date,
     '92000000-0000-4000-8000-000000000003',
     clock_timestamp() - interval '20 minutes 1 second',
     clock_timestamp() - interval '20 minutes',
@@ -364,7 +382,7 @@ select is((select destination_url from public.list_eligible_offers('a2000000-000
 select is((select claim_duration_seconds from public.list_eligible_offers('a2000000-0000-4000-8000-000000000002', array['b1000000-0000-4000-8000-000000000001'::uuid], clock_timestamp())), 1800, 'partner timer duration is not fixed at ten minutes');
 select is((select discovery_treatment from public.list_eligible_offers('a2000000-0000-4000-8000-000000000002', array['b1000000-0000-4000-8000-000000000001'::uuid], clock_timestamp())), 'partner_featured', 'partner discovery treatment is returned through the same contract');
 
-reset role;
+set local role postgres;
 
 select throws_ok(
   $$insert into private.offer_campaign_links (offer_id, campaign_id) values ('d3000000-0000-4000-8000-000000000003', 'c2000000-0000-4000-8000-000000000002')$$,
@@ -469,7 +487,7 @@ select throws_ok(
   'zero is rejected so NULL alone represents no timer'
 );
 
-reset role;
+set local role postgres;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a5000000-0000-4000-8000-000000000005', true);

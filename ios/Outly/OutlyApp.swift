@@ -151,10 +151,16 @@ struct OutlyApp: App {
             demoState.profile.firstName = "Liam"
             _store = State(initialValue: DemoStore(previewState: demoState))
         } else {
-            _store = State(initialValue: DemoStore(resetOnLaunch: reset))
+            _store = State(initialValue: DemoStore(
+                resetOnLaunch: reset,
+                allowsFixtures: services.isDemo
+            ))
         }
 #else
-        _store = State(initialValue: DemoStore(resetOnLaunch: reset))
+        _store = State(initialValue: DemoStore(
+            resetOnLaunch: reset,
+            allowsFixtures: false
+        ))
 #endif
         _router = State(initialValue: initialRouter)
     }
@@ -174,17 +180,112 @@ struct OutlyApp: App {
 
 struct RootView: View {
     @Environment(DemoStore.self) private var store
+    @Environment(AppRouter.self) private var router
+    @Environment(OutlyTheme.self) private var theme
+    @Environment(\.appServices) private var services
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isRestoringSession = true
+    @State private var restoreGeneration = 0
+    @State private var startupError: String?
 
     var body: some View {
         Group {
-            if store.state.onboardingStage == .main {
+            if !services.isDemo, isRestoringSession {
+                ZStack {
+                    theme.background.ignoresSafeArea()
+                    ProgressView()
+                        .tint(theme.primaryText)
+                        .accessibilityLabel("Loading Outly")
+                }
+            } else if !services.isDemo, let startupError {
+                ContentUnavailableView {
+                    Label("Couldn’t load Outly", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(startupError)
+                } actions: {
+                    Button("Try again") {
+                        restoreGeneration += 1
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Log out") {
+                        Task { await signOutAfterStartupFailure() }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .foregroundStyle(theme.primaryText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(theme.background)
+            } else if store.state.onboardingStage == .main {
                 MainAppView()
             } else {
                 OnboardingFlowView()
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: store.state.onboardingStage)
+        .task(id: restoreGeneration) {
+            await restoreSessionIfNeeded()
+        }
+        .onOpenURL { url in
+            guard !services.isDemo else { return }
+            Task {
+                do {
+                    try await services.handleAuthCallback(url)
+                    restoreGeneration += 1
+                } catch {
+                    startupError = Self.message(for: error)
+                    isRestoringSession = false
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func restoreSessionIfNeeded() async {
+        guard !services.isDemo else {
+            isRestoringSession = false
+            return
+        }
+
+        isRestoringSession = true
+        startupError = nil
+
+        guard await services.currentUserID() != nil else {
+            store.signOutLocally()
+            router.reset()
+            isRestoringSession = false
+            return
+        }
+
+        do {
+            store.applyConsumerBootstrap(try await services.loadConsumerBootstrap())
+        } catch let error as SupabaseBackendError {
+            if case let .server(code, _, _) = error, code == "ONBOARDING_REQUIRED" {
+                // A new authenticated user has no consumer profile until the
+                // protected DOB/gender onboarding RPC succeeds.
+                store.go(to: .name)
+            } else {
+                startupError = Self.message(for: error)
+            }
+        } catch {
+            startupError = Self.message(for: error)
+        }
+
+        isRestoringSession = false
+    }
+
+    @MainActor
+    private func signOutAfterStartupFailure() async {
+        try? await services.signOut()
+        store.signOutLocally()
+        router.reset()
+        startupError = nil
+        isRestoringSession = false
+    }
+
+    private static func message(for error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription
+            ?? "Check your connection and try again."
     }
 }
 

@@ -9,7 +9,7 @@ struct ExploreView: View {
     @State private var isVenuePreviewPresented = true
 
     private var filteredVenues: [Venue] {
-        VenueCatalog.venues.filter(router.filters.includes)
+        store.venues.filter(router.filters.includes)
     }
 
     private var selectedVenue: Venue? {
@@ -184,12 +184,16 @@ enum VenueMarkerAnchor {
     case center
 
     static func forVenue(_ venueID: Venue.ID) -> Self {
+        #if DEBUG
         switch venueID {
         case "track-field": .bottomLeft
         case "lavelle", "baro": .bottomRight
         case "paris-texas": .topRight
         default: .center
         }
+        #else
+        .center
+        #endif
     }
 
     var unitPoint: UnitPoint {
@@ -267,17 +271,31 @@ struct VenueMarker: View {
 
     @ViewBuilder
     private var markerArtwork: some View {
-        if let assetName = venue.mapMarkerAssetName {
+        if let markerURL = venue.markerURL {
+            AsyncImage(url: markerURL) { phase in
+                if case let .success(image) = phase {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    genericMarkerArtwork
+                }
+            }
+        } else if let assetName = venue.mapMarkerAssetName {
             Image(assetName)
                 .resizable()
                 .scaledToFit()
         } else {
-            Image(systemName: "mappin.and.ellipse")
-                .resizable()
-                .scaledToFit()
-                .padding(16)
-                .foregroundStyle(theme.accent)
+            genericMarkerArtwork
         }
+    }
+
+    private var genericMarkerArtwork: some View {
+        Image(systemName: "mappin.and.ellipse")
+            .resizable()
+            .scaledToFit()
+            .padding(16)
+            .foregroundStyle(theme.accent)
     }
 
     private var markerConnector: some View {
@@ -310,12 +328,17 @@ struct VenueMarker: View {
     }
 
     private var markerHorizontalOffset: CGFloat {
+        #if DEBUG
         venue.id == "baro" ? 10 : 0
+        #else
+        0
+        #endif
     }
 }
 
 extension Venue {
     var mapMarkerAssetName: String? {
+        #if DEBUG
         switch id {
         case "track-field": "VenuePinTrackField"
         case "lavelle": "VenuePinLavelle"
@@ -323,6 +346,9 @@ extension Venue {
         case "paris-texas": "VenuePinParisTexas"
         default: nil
         }
+        #else
+        nil
+        #endif
     }
 }
 
@@ -332,16 +358,22 @@ struct VenueArtworkIcon: View {
 
     var body: some View {
         Group {
-            if let assetName = venue.mapMarkerAssetName {
+            if let markerURL = venue.markerURL {
+                AsyncImage(url: markerURL) { phase in
+                    if case let .success(image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        genericArtwork
+                    }
+                }
+            } else if let assetName = venue.mapMarkerAssetName {
                 Image(assetName)
                     .resizable()
                     .scaledToFit()
             } else {
-                Image(systemName: "mappin.and.ellipse")
-                    .resizable()
-                    .scaledToFit()
-                    .padding(10)
-                    .foregroundStyle(theme.accent)
+                genericArtwork
             }
         }
         .frame(width: 52, height: 52)
@@ -354,6 +386,14 @@ struct VenueArtworkIcon: View {
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private var genericArtwork: some View {
+        Image(systemName: "mappin.and.ellipse")
+            .resizable()
+            .scaledToFit()
+            .padding(10)
+            .foregroundStyle(theme.accent)
     }
 }
 
