@@ -27,8 +27,12 @@ struct OutlyMapView: View {
         minPitch: 30
     )
 
-    private var previewBottomInset: CGFloat {
+    private var previewOverlayHeight: CGFloat {
         selectedVenueID == nil ? 0 : 238
+    }
+
+    private var ornamentBottomMargin: CGFloat {
+        previewOverlayHeight + (dynamicTypeSize.isAccessibilitySize ? 118 : 2)
     }
 
     var body: some View {
@@ -84,17 +88,16 @@ struct OutlyMapView: View {
             )
         )
         .cameraBounds(westTorontoBounds)
-        .additionalSafeAreaInsets(.bottom, previewBottomInset)
         .ornamentOptions(.init(
             scaleBar: .init(visibility: .hidden),
             compass: .init(visibility: .hidden),
             logo: .init(
                 position: .bottomLeading,
-                margins: CGPoint(x: 6, y: dynamicTypeSize.isAccessibilitySize ? 118 : 2)
+                margins: CGPoint(x: 6, y: ornamentBottomMargin)
             ),
             attributionButton: .init(
                 position: .bottomTrailing,
-                margins: CGPoint(x: 10, y: dynamicTypeSize.isAccessibilitySize ? 118 : 2),
+                margins: CGPoint(x: 10, y: ornamentBottomMargin),
                 tintColor: UIColor(white: 0.86, alpha: 0.62)
             )
         ))

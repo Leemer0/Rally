@@ -19,13 +19,12 @@ struct OfferDiscoveryRow: View {
 
             VStack(alignment: .leading, spacing: compact ? 3 : 5) {
                 HStack(spacing: 6) {
-                    if offer.discoveryTreatment == .outlyExclusive {
-                        Image("WingedOMark")
-                            .renderingMode(.template)
+                    if offer.kind == .partner {
+                        Image("SponsoredOfferStar")
                             .resizable()
                             .scaledToFit()
-                            .frame(width: compact ? 24 : 29, height: compact ? 12 : 15)
-                            .foregroundStyle(theme.primaryText)
+                            .frame(width: compact ? 14 : 16, height: compact ? 14 : 16)
+                            .shadow(color: .black.opacity(0.28), radius: 1, y: 1)
                             .accessibilityHidden(true)
                     }
 
@@ -62,59 +61,22 @@ struct OfferDiscoveryRow: View {
     }
 }
 
-/// Small map/list badge that preserves venue identity. Outly exclusives use
-/// the supplied winged-O; partner placements use a restrained sponsor initial.
+/// A small uncontained chrome star for sponsored map/list placements. Regular
+/// offers intentionally have no discovery icon to keep venue surfaces quiet.
 struct OfferDiscoveryIcon: View {
-    @Environment(OutlyTheme.self) private var theme
     let offer: VenueOffer
     var size: CGFloat = 26
 
+    @ViewBuilder
     var body: some View {
-        Group {
-            if offer.discoveryTreatment == .outlyExclusive {
-                Image("WingedOMark")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(.horizontal, size * 0.16)
-                    .foregroundStyle(theme.primaryText)
-            } else if let sponsor = offer.sponsor {
-                if let assetName = sponsor.logoAssetName {
-                    Image(assetName)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(size * 0.2)
-                } else if let logoURL = sponsor.logoURL {
-                    AsyncImage(url: logoURL) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFit()
-                        } else {
-                            fallbackSponsorInitial(sponsor)
-                        }
-                    }
-                    .padding(size * 0.18)
-                } else {
-                    fallbackSponsorInitial(sponsor)
-                }
-            }
+        if offer.kind == .partner {
+            Image("SponsoredOfferStar")
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(offer.accessibilitySummary)
         }
-        .frame(width: size, height: size)
-        .background(theme.sunkenSurface.opacity(0.96), in: Circle())
-        .overlay {
-            Circle()
-                .stroke(
-                    offer.kind == .partner ? theme.partnerAccent.opacity(0.9) : theme.accent.opacity(0.9),
-                    lineWidth: 1
-                )
-        }
-        .shadow(color: .black.opacity(0.45), radius: 3, y: 2)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(offer.accessibilitySummary)
-    }
-
-    private func fallbackSponsorInitial(_ sponsor: OfferSponsor) -> some View {
-        Text(String(sponsor.displayName.prefix(1)).uppercased())
-            .font(.system(size: size * 0.43, weight: .bold, design: .rounded))
-            .foregroundStyle(theme.primaryText)
     }
 }

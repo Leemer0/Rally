@@ -244,13 +244,28 @@ final class OutlyUITests: XCTestCase {
         let preview = app.descendants(matching: .any)["venue-preview-card"]
         XCTAssertTrue(preview.waitForExistence(timeout: 3))
 
+        let marker = app.buttons["venue-marker-track-field"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 3))
+        let selectedFrame = marker.frame
+        XCTAssertEqual(
+            app.staticTexts.matching(NSPredicate(format: "label == %@", "Track & Field")).count,
+            1,
+            "The venue name should appear in the preview card, not repeat on the selected map marker."
+        )
+
         tapBareMap()
         XCTAssertTrue(preview.waitForNonExistence(timeout: 3))
 
-        let marker = app.buttons["venue-marker-track-field"]
-        XCTAssertTrue(marker.waitForExistence(timeout: 3))
+        let dismissedFrame = marker.frame
+        XCTAssertEqual(selectedFrame.midX, dismissedFrame.midX, accuracy: 2)
+        XCTAssertEqual(selectedFrame.midY, dismissedFrame.midY, accuracy: 2)
+
         marker.tap()
         XCTAssertTrue(preview.waitForExistence(timeout: 3))
+
+        let restoredFrame = marker.frame
+        XCTAssertEqual(selectedFrame.midX, restoredFrame.midX, accuracy: 2)
+        XCTAssertEqual(selectedFrame.midY, restoredFrame.midY, accuracy: 2)
     }
 
     private func tapBareMap() {
