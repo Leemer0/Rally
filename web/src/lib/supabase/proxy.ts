@@ -12,6 +12,8 @@ const protectedPrefixes = [
   "/venue/reset-password",
 ];
 
+const credentialQueryKeys = ["email", "password", "password-confirmation"];
+
 function isProtectedPath(pathname: string) {
   return protectedPrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
@@ -31,7 +33,29 @@ function loginRedirect(request: NextRequest, error?: string) {
   return NextResponse.redirect(url);
 }
 
+function stripCredentialsFromUrl(request: NextRequest) {
+  if (
+    request.method !== "GET" ||
+    !credentialQueryKeys.some((key) => request.nextUrl.searchParams.has(key))
+  ) {
+    return null;
+  }
+
+  const url = request.nextUrl.clone();
+  credentialQueryKeys.forEach((key) => url.searchParams.delete(key));
+
+  const response = NextResponse.redirect(url, 303);
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
+  const credentialRedirect = stripCredentialsFromUrl(request);
+  if (credentialRedirect) {
+    return credentialRedirect;
+  }
+
   if (!isSupabaseConfigured()) {
     return isProtectedPath(request.nextUrl.pathname)
       ? loginRedirect(request, "configuration")

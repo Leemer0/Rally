@@ -9,6 +9,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/admin/:path*",
+    "/venue/login",
     "/venue/status",
     "/venue/reset-password",
   ],

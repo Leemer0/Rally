@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { VenueAuthShell } from "@/components/site/venue-auth-shell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { signInVenue } from "@/app/venue/actions";
 import { getAuthMessage } from "@/lib/auth/messages";
 import { safeNextPath } from "@/lib/auth/paths";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { VenueLoginForm } from "@/app/venue/login/venue-login-form";
 
 export const metadata: Metadata = { title: "Venue sign in" };
 
@@ -23,12 +21,21 @@ export default async function VenueLoginPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-  const error = getAuthMessage(params.error);
+  const configured = isSupabaseConfigured();
+  const error = getAuthMessage(configured ? params.error : "configuration");
   const message = getAuthMessage(params.message);
   const next = safeNextPath(params.next);
+  const founder = Boolean(next?.startsWith("/admin"));
 
   return (
-    <VenueAuthShell title="Welcome back." copy="Sign in with the business email connected to your venue.">
+    <VenueAuthShell
+      title={founder ? "Founder sign in." : "Welcome back."}
+      copy={
+        founder
+          ? "Use your Outly founder account to continue."
+          : "Sign in with the business email connected to your venue."
+      }
+    >
       {(error || message) && (
         <p
           role={error ? "alert" : "status"}
@@ -41,19 +48,24 @@ export default async function VenueLoginPage({
           {error ?? message}
         </p>
       )}
-      <form action={signInVenue} className="space-y-5">
-        {next && <input type="hidden" name="next" value={next} />}
-        <div className="space-y-2">
-          <Label htmlFor="email">Business email</Label>
-          <Input id="email" name="email" type="email" autoComplete="email" placeholder="you@venue.com" required className="h-12 bg-white/[0.035]" />
+      {configured ? (
+        <VenueLoginForm founder={founder} next={next} />
+      ) : (
+        <div className="space-y-4">
+          <Button type="button" size="lg" className="h-12 w-full" disabled>
+            Sign in unavailable
+          </Button>
+          <p className="text-center text-xs leading-5 text-white/40">
+            Site administrator? Finish the Supabase environment setup, then
+            redeploy this site.
+          </p>
+          <p className="text-center text-sm text-white/42">
+            <Link href="/" className="text-white underline underline-offset-4">
+              Return to Outly
+            </Link>
+          </p>
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><Link href="/venue/forgot-password" className="text-xs text-white/46 hover:text-white">Forgot password?</Link></div>
-          <Input id="password" name="password" type="password" autoComplete="current-password" required className="h-12 bg-white/[0.035]" />
-        </div>
-        <Button type="submit" size="lg" className="h-12 w-full">Sign in <ArrowRight className="size-4" /></Button>
-      </form>
-      <p className="mt-6 text-center text-sm text-white/42">New to Outly? <Link href="/venue/register" className="text-white underline underline-offset-4">Get started</Link></p>
+      )}
     </VenueAuthShell>
   );
 }

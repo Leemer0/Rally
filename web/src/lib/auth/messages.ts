@@ -2,7 +2,7 @@ const messages: Record<string, string> = {
   account_deleted: "Your venue account has been permanently deleted.",
   account_exists: "An account already exists for that business email. Sign in instead.",
   business_email_mismatch: "Use the same business email as the signed-in venue account.",
-  configuration: "Venue access is not configured yet. Please try again shortly.",
+  configuration: "Sign in is unavailable because this deployment is missing its secure Supabase connection settings.",
   email_not_confirmed: "Confirm your email before signing in.",
   founder_access_required: "That account does not have founder access.",
   invalid_credentials: "The email or password is incorrect.",
