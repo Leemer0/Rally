@@ -92,6 +92,11 @@ arbitrary countdowns, privacy rules, deletion, and primary API workflows.
    documented in `../web/.env.example`. The iOS app receives only the project URL
    and publishable key.
 
+7. Add `RESEND_API_KEY`, `OUTLY_EMAIL_FROM`, `OUTLY_EMAIL_REPLY_TO`, and
+   `OUTLY_SITE_URL` as Supabase Edge Function secrets. Consumer welcome email is
+   sent only after successful 19+ onboarding; Auth confirmation and recovery
+   email continues through Supabase Auth using Resend SMTP.
+
 Approved partner logos belong in the public `partner-media` bucket with paths
 such as `partner-media/northline/logo.webp`. There is intentionally no direct
 browser upload policy; founders upload approved artwork through trusted server
